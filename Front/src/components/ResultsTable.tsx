@@ -1,4 +1,5 @@
 import { SireneEtablissement } from "../types";
+import { IconExternal, IconInbox } from "./Icons";
 
 export default function ResultsTable({
   rows,
@@ -10,7 +11,16 @@ export default function ResultsTable({
   onSiretClick?: (siret: string, row: SireneEtablissement) => void;
 }) {
   if (!rows.length) {
-    return <div className="card muted">Aucun résultat pour le moment.</div>;
+    return (
+      <div className="card empty-state">
+        <IconInbox size={32} />
+        <strong>Aucun résultat pour le moment</strong>
+        <span>
+          Lance une recherche avec les filtres ci-dessus, ou colle un SIRET
+          pour ajouter un établissement précis.
+        </span>
+      </div>
+    );
   }
 
   return (
@@ -35,25 +45,15 @@ export default function ResultsTable({
             const isHighlighted = highlightSiret === r.siret;
 
             return (
-              <tr
-                key={r.siret}
-                className={isHighlighted ? "row-highlight" : ""}
-              >
+              <tr key={r.siret} className={isHighlighted ? "row-highlight" : ""}>
                 <td>
-                  {/* SIRET rendu cliquable */}
                   <button
+                    className="siret-btn"
                     onClick={() => onSiretClick?.(r.siret, r)}
-                    style={{
-                      border: "none",
-                      background: "transparent",
-                      padding: 0,
-                      margin: 0,
-                      cursor: "pointer",
-                      color: "#0366d6",
-                    }}
-                    title="Ouvrir options de recherche"
+                    title="Ouvrir les options de recherche"
                   >
                     <code>{r.siret}</code>
+                    <IconExternal size={12} />
                   </button>
                 </td>
                 <td>{nom}</td>
@@ -62,11 +62,21 @@ export default function ResultsTable({
                     {r.activitePrincipaleEtablissement || "—"}
                   </span>
                 </td>
-                <td>{r.dateCreationEtablissement || "—"}</td>
-                <td>{r.adresse || "—"}</td>
-                <td>{r.codePostalEtablissement || "—"}</td>
-                <td>{r.departement || "—"}</td>
-                <td>{r.libelleCommuneEtablissement || "—"}</td>
+                <td className={r.dateCreationEtablissement ? "" : "muted-cell"}>
+                  {r.dateCreationEtablissement || "—"}
+                </td>
+                <td className={r.adresse ? "" : "muted-cell"}>
+                  {r.adresse || "—"}
+                </td>
+                <td className={r.codePostalEtablissement ? "" : "muted-cell"}>
+                  {r.codePostalEtablissement || "—"}
+                </td>
+                <td className={r.departement ? "" : "muted-cell"}>
+                  {r.departement || "—"}
+                </td>
+                <td className={r.libelleCommuneEtablissement ? "" : "muted-cell"}>
+                  {r.libelleCommuneEtablissement || "—"}
+                </td>
               </tr>
             );
           })}

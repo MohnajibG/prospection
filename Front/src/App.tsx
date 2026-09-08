@@ -7,6 +7,7 @@ import { fetchNewEtablissements } from "./api/sirene";
 import { SearchParams, SireneEtablissement } from "./types";
 import { toCSV, downloadCSV } from "./lib/csv";
 import { downloadExcel } from "./lib/excel";
+import { IconAlert, IconDownload } from "./components/Icons";
 
 const DEFAULTS: SearchParams = {
   nafCodes: ["5610A", "5610C", "5621Z"],
@@ -107,11 +108,23 @@ export default function App() {
   };
 
   return (
-    <div className="container grid" style={{ gap: 16 }}>
-      <header className="grid" style={{ gap: 6 }}>
-        <h1>🧾 Sirene Prospection — Nouveaux établissements</h1>
-        <div className="muted">
-          Recherche INSEE + filtrage intelligent backend
+    <div className="container">
+      <header className="app-header">
+        <div className="app-header__brand">
+          <div className="app-header__logo">🧾</div>
+          <div>
+            <h1>Sirene Prospection</h1>
+            <div className="app-header__subtitle">
+              Nouveaux établissements — recherche INSEE
+            </div>
+          </div>
+        </div>
+
+        <div className="app-header__badge">
+          <span className="app-header__badge-dot" />
+          {rows.length
+            ? `${rows.length} établissement${rows.length > 1 ? "s" : ""}`
+            : "Backend sécurisé"}
         </div>
       </header>
 
@@ -147,34 +160,43 @@ export default function App() {
         }}
       />
 
-      {error && <div className="card error">⚠️ {error}</div>}
+      {error && (
+        <div className="card error">
+          <IconAlert size={17} />
+          {error}
+        </div>
+      )}
 
       {!!rows.length && (
-        <div
-          className="card row"
-          style={{ justifyContent: "space-between", gap: 8 }}
-        >
-          <div className="row" style={{ gap: 8 }}>
-            <label>Département</label>
-            <select
-              value={deptFilter}
-              onChange={(e) => setDeptFilter(e.target.value)}
+        <div className="card row between">
+          <div className="segmented" style={{ overflowX: "auto", maxWidth: "100%" }}>
+            <button
+              type="button"
+              className={deptFilter === "ALL" ? "active" : ""}
+              onClick={() => setDeptFilter("ALL")}
             >
-              <option value="ALL">Tous ({rows.length})</option>
-              {deptOptions.map((d) => (
-                <option key={d} value={d}>
-                  {d} ({rows.filter((r) => r.departement === d).length})
-                </option>
-              ))}
-            </select>
+              Tous ({rows.length})
+            </button>
+            {deptOptions.map((d) => (
+              <button
+                type="button"
+                key={d}
+                className={deptFilter === d ? "active" : ""}
+                onClick={() => setDeptFilter(d)}
+              >
+                {d} ({rows.filter((r) => r.departement === d).length})
+              </button>
+            ))}
           </div>
 
           <div className="row" style={{ gap: 8 }}>
             <button className="btn secondary" onClick={exportCSV}>
-              Export CSV
+              <IconDownload size={15} />
+              CSV
             </button>
             <button className="btn" onClick={exportExcel}>
-              Export Excel
+              <IconDownload size={15} />
+              Excel
             </button>
           </div>
         </div>
@@ -188,7 +210,7 @@ export default function App() {
 
       {modalOpen && <SiretModal etab={selectedEtab} onClose={closeModal} />}
 
-      <footer className="muted" style={{ fontSize: 12 }}>
+      <footer className="app-footer">
         INSEE SIRENE API • backend filtré (safe mode)
       </footer>
     </div>

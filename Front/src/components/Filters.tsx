@@ -1,11 +1,12 @@
 import { NafCode, SearchParams } from "../types";
+import { IconSearch, IconSpinner } from "./Icons";
 
 const ALL_NAF: { code: NafCode; label: string }[] = [
-  { code: "5610A", label: "Restaurant traditionnel (56.10A)" },
-  { code: "5610B", label: "Cafétéria / restauration collective (56.10B)" },
-  { code: "5610C", label: "Restauration rapide (56.10C)" },
-  { code: "5630Z", label: "Débit de boisson (56.30Z)" },
-  { code: "5621Z", label: "Traiteur (56.21Z)" },
+  { code: "5610A", label: "Restaurant traditionnel" },
+  { code: "5610B", label: "Cafétéria / restauration collective" },
+  { code: "5610C", label: "Restauration rapide" },
+  { code: "5630Z", label: "Débit de boisson" },
+  { code: "5621Z", label: "Traiteur" },
 ];
 
 type Props = {
@@ -26,29 +27,29 @@ export default function Filters({ value, onChange, onSubmit, loading }: Props) {
   };
 
   return (
-    <div className="card grid" style={{ gap: 14 }}>
-      <div className="grid cols-3">
-        {/* ✅ Zone de recherche */}
-        <div>
+    <div className="card grid" style={{ gap: 20 }}>
+      <div className="field-grid">
+        <div className="field">
           <label>Zone de recherche</label>
-          <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <input
-              type="checkbox"
-              checked={value.nationwide}
-              onChange={(e) =>
-                onChange({ ...value, nationwide: e.target.checked })
-              }
-              style={{ width: 16, height: 16 }}
-            />
-            <span>Toute la France</span>
-          </label>
-          <small>
-            Si activé, le filtre département est ignoré et tu filtres après.
-          </small>
+          <div className="segmented">
+            <button
+              type="button"
+              className={!value.nationwide ? "active" : ""}
+              onClick={() => onChange({ ...value, nationwide: false })}
+            >
+              Département
+            </button>
+            <button
+              type="button"
+              className={value.nationwide ? "active" : ""}
+              onClick={() => onChange({ ...value, nationwide: true })}
+            >
+              Toute la France
+            </button>
+          </div>
         </div>
 
-        {/* ✅ Département / CP */}
-        <div>
+        <div className="field">
           <label>Département / préfixe CP</label>
           <input
             placeholder="75, 69, 13..."
@@ -58,12 +59,11 @@ export default function Filters({ value, onChange, onSubmit, loading }: Props) {
               onChange({ ...value, postalPrefix: e.target.value.trim() })
             }
           />
-          <small>Ex: 75* = Paris, 92* = Hauts-de-Seine</small>
+          <small>Ex : 75* = Paris, 92* = Hauts-de-Seine</small>
         </div>
 
-        {/* ✅ Fenêtre temps */}
-        <div>
-          <label>Créés il y a moins de ... jours</label>
+        <div className="field">
+          <label>Créés il y a moins de (jours)</label>
           <input
             type="number"
             min={1}
@@ -75,8 +75,7 @@ export default function Filters({ value, onChange, onSubmit, loading }: Props) {
           />
         </div>
 
-        {/* ✅ Pagination */}
-        <div>
+        <div className="field">
           <label>Résultats par page</label>
           <select
             value={value.perPage}
@@ -93,38 +92,33 @@ export default function Filters({ value, onChange, onSubmit, loading }: Props) {
         </div>
       </div>
 
-      {/* ✅ NAF */}
-      <div>
-        <label>Activités ciblées</label>
-        <div className="row" style={{ flexWrap: "wrap" }}>
-          {ALL_NAF.map((n) => (
-            <label
-              key={n.code}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
-                marginRight: 12,
-              }}
-            >
-              <input
-                type="checkbox"
-                checked={value.nafCodes.includes(n.code)}
-                onChange={() => toggleNaf(n.code)}
-                style={{ width: 16, height: 16 }}
-              />
-              <span>{n.label}</span>
-            </label>
-          ))}
+      <hr className="divider" />
+
+      <div className="field">
+        <label>Activités ciblées (NAF)</label>
+        <div className="chip-group">
+          {ALL_NAF.map((n) => {
+            const active = value.nafCodes.includes(n.code);
+            return (
+              <button
+                type="button"
+                key={n.code}
+                className={`chip ${active ? "active" : ""}`}
+                onClick={() => toggleNaf(n.code)}
+                aria-pressed={active}
+              >
+                {n.label}
+                <span className="chip-code">{n.code}</span>
+              </button>
+            );
+          })}
         </div>
       </div>
 
-      {/* ✅ Action */}
-      <div className="row">
-        <button className="btn" onClick={onSubmit} disabled={loading}>
-          {loading ? "Recherche..." : "Trouver les nouveaux établissements"}
-        </button>
-      </div>
+      <button className="btn" onClick={onSubmit} disabled={loading}>
+        {loading ? <IconSpinner size={16} /> : <IconSearch size={16} />}
+        {loading ? "Recherche en cours..." : "Trouver les nouveaux établissements"}
+      </button>
     </div>
   );
 }
