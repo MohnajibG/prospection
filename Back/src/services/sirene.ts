@@ -137,6 +137,7 @@ export async function fetchNewEtablissements(
   const maxPages = p.nationwide ? 5 : 10;
 
   const out: SireneEtablissement[] = [];
+  let anySuccess = false;
 
   for (const naf of nafCodes) {
     // activitePrincipaleEtablissement est un champ historisé : il doit être
@@ -163,6 +164,8 @@ export async function fetchNewEtablissements(
         break;
       }
 
+      anySuccess = true;
+
       const data = await res.json();
       const etabs = (data.etablissements ?? [])
         .map(mapEtablissement)
@@ -185,6 +188,12 @@ export async function fetchNewEtablissements(
 
       await sleep(2200); // throttle, ~27 requêtes/min max
     }
+  }
+
+  if (!anySuccess) {
+    throw new Error(
+      "Impossible de contacter l'API INSEE (erreur serveur). Réessaie dans quelques minutes."
+    );
   }
 
   return Array.from(new Map(out.map((e) => [e.siret, e])).values());
