@@ -542,6 +542,15 @@ tbody td.muted-cell {
   font-size: 12px;
 }
 
+.badge.lead {
+  background: var(--success-soft);
+  border-color: rgba(52, 211, 153, 0.35);
+  color: var(--success);
+  font-family: inherit;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
 @keyframes highlight-fade {
   from {
     background: var(--accent-soft);

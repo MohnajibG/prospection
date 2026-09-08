@@ -21,4 +21,16 @@ export type SireneEtablissement = {
 
   // calculé côté front
   departement?: string;
+
+  // enrichi via /search/enrich (OpenStreetMap)
+  telephone?: string;
+  siteWeb?: string;
+  presenceWeb?: "sans_site" | "avec_site" | "inconnu";
+};
+
+export type WebPresenceResult = {
+  matched: boolean;
+  phone?: string;
+  website?: string;
+  hasWebsite: boolean;
 };

@@ -3,11 +3,11 @@ import Filters from "./components/Filters";
 import ResultsTable from "./components/ResultsTable";
 import SiretSearch from "./components/SiretSearch";
 import SiretModal from "./components/SiretModal";
-import { fetchNewEtablissements } from "./api/sirene";
+import { fetchNewEtablissements, enrichWebPresence } from "./api/sirene";
 import { SearchParams, SireneEtablissement } from "./types";
 import { toCSV, downloadCSV } from "./lib/csv";
 import { downloadExcel } from "./lib/excel";
-import { IconAlert, IconDownload } from "./components/Icons";
+import { IconAlert, IconDownload, IconSpinner, IconTarget } from "./components/Icons";
 
 const DEFAULTS: SearchParams = {
   nafCodes: ["5610A", "5610C", "5621Z"],
@@ -33,9 +33,11 @@ export default function App() {
 
   const [rows, setRows] = useState<SireneEtablissement[]>([]);
   const [loading, setLoading] = useState(false);
+  const [enriching, setEnriching] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const [deptFilter, setDeptFilter] = useState<string>("ALL");
+  const [onlyNoSite, setOnlyNoSite] = useState(false);
   const [highlightSiret, setHighlightSiret] = useState<string | null>(null);
 
   const [selectedEtab, setSelectedEtab] = useState<SireneEtablissement | null>(
@@ -75,6 +77,45 @@ export default function App() {
     }
   };
 
+  const runEnrich = async () => {
+    setEnriching(true);
+    setError(null);
+
+    try {
+      const targets = filteredRows.map((r) => ({
+        siret: r.siret,
+        nom: r.denominationUniteLegale || r.nomUniteLegale,
+        adresse: r.adresse,
+        codePostal: r.codePostalEtablissement,
+        commune: r.libelleCommuneEtablissement,
+      }));
+
+      const result = await enrichWebPresence(targets);
+
+      setRows((prev) =>
+        prev.map((r) => {
+          const hit = result[r.siret];
+          if (!hit) return r;
+
+          return {
+            ...r,
+            telephone: hit.phone,
+            siteWeb: hit.website,
+            presenceWeb: !hit.matched
+              ? "inconnu"
+              : hit.hasWebsite
+                ? "avec_site"
+                : "sans_site",
+          };
+        }),
+      );
+    } catch (e: any) {
+      setError(e?.message ?? "Erreur lors de la vérification");
+    } finally {
+      setEnriching(false);
+    }
+  };
+
   const handleSiretClick = (_siret: string, row: SireneEtablissement) => {
     setSelectedEtab(row);
     setModalOpen(true);
@@ -92,9 +133,18 @@ export default function App() {
   }, [rows]);
 
   const filteredRows = useMemo(() => {
-    if (deptFilter === "ALL") return rows;
-    return rows.filter((r) => r.departement === deptFilter);
-  }, [rows, deptFilter]);
+    let list =
+      deptFilter === "ALL" ? rows : rows.filter((r) => r.departement === deptFilter);
+
+    if (onlyNoSite) list = list.filter((r) => r.presenceWeb === "sans_site");
+
+    return list;
+  }, [rows, deptFilter, onlyNoSite]);
+
+  const noSiteCount = useMemo(
+    () => rows.filter((r) => r.presenceWeb === "sans_site").length,
+    [rows],
+  );
 
   const exportCSV = () => {
     const csv = toCSV(filteredRows);
@@ -189,7 +239,22 @@ export default function App() {
             ))}
           </div>
 
-          <div className="row" style={{ gap: 8 }}>
+          <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
+            <button
+              type="button"
+              className={`chip ${onlyNoSite ? "active" : ""}`}
+              onClick={() => setOnlyNoSite((v) => !v)}
+              aria-pressed={onlyNoSite}
+            >
+              🎯 Sans site uniquement
+              {noSiteCount > 0 && <span className="chip-code">{noSiteCount}</span>}
+            </button>
+
+            <button className="btn secondary" onClick={runEnrich} disabled={enriching}>
+              {enriching ? <IconSpinner size={15} /> : <IconTarget size={15} />}
+              {enriching ? "Vérification..." : "Vérifier la présence web"}
+            </button>
+
             <button className="btn secondary" onClick={exportCSV}>
               <IconDownload size={15} />
               CSV

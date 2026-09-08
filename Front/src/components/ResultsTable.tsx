@@ -1,5 +1,24 @@
 import { SireneEtablissement } from "../types";
-import { IconExternal, IconInbox } from "./Icons";
+import { IconExternal, IconInbox, IconPhone } from "./Icons";
+
+function WebPresenceCell({ r }: { r: SireneEtablissement }) {
+  if (r.presenceWeb === "sans_site") {
+    return <span className="badge lead">🎯 Pas de site</span>;
+  }
+
+  if (r.presenceWeb === "avec_site") {
+    return r.siteWeb ? (
+      <a href={r.siteWeb} target="_blank" rel="noopener noreferrer" className="siret-btn">
+        A un site
+        <IconExternal size={12} />
+      </a>
+    ) : (
+      <span className="muted-cell">A un site</span>
+    );
+  }
+
+  return <span className="muted-cell">—</span>;
+}
 
 export default function ResultsTable({
   rows,
@@ -36,6 +55,8 @@ export default function ResultsTable({
             <th>CP</th>
             <th>Département</th>
             <th>Ville</th>
+            <th>Téléphone</th>
+            <th>Présence web</th>
           </tr>
         </thead>
 
@@ -76,6 +97,19 @@ export default function ResultsTable({
                 </td>
                 <td className={r.libelleCommuneEtablissement ? "" : "muted-cell"}>
                   {r.libelleCommuneEtablissement || "—"}
+                </td>
+                <td className={r.telephone ? "" : "muted-cell"}>
+                  {r.telephone ? (
+                    <a href={`tel:${r.telephone}`} className="siret-btn">
+                      <IconPhone size={12} />
+                      {r.telephone}
+                    </a>
+                  ) : (
+                    "—"
+                  )}
+                </td>
+                <td>
+                  <WebPresenceCell r={r} />
                 </td>
               </tr>
             );
