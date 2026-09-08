@@ -1,12 +1,10 @@
 import { useState } from "react";
-import { fetchEtablissementBySiret } from "../lib/sirene";
+import { fetchEtablissementBySiret } from "../api/sirene";
 import { SireneEtablissement } from "../types";
 
 export default function SiretSearch({
-  apiKey,
   onFound,
 }: {
-  apiKey: string;
   onFound: (e: SireneEtablissement) => void;
 }) {
   const [siret, setSiret] = useState("");
@@ -18,7 +16,7 @@ export default function SiretSearch({
     setMsg(null);
 
     try {
-      const e = await fetchEtablissementBySiret(siret, apiKey);
+      const e = await fetchEtablissementBySiret(siret);
 
       if (!e) {
         setMsg("Aucun établissement trouvé pour ce SIRET.");

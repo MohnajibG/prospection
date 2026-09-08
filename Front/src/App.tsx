@@ -8,10 +8,7 @@ import { SearchParams, SireneEtablissement } from "./types";
 import { toCSV, downloadCSV } from "./lib/csv";
 import { downloadExcel } from "./lib/excel";
 
-const INSEE_API_KEY = "c6b82db6-0cab-4b8b-b82d-b60cab5b8b53";
-
 const DEFAULTS: SearchParams = {
-  apiKey: INSEE_API_KEY,
   nafCodes: ["5610A", "5610C", "5621Z"],
   daysBack: 30,
   postalPrefix: "75",
@@ -30,9 +27,7 @@ export default function App() {
   const [params, setParams] = useState<SearchParams>(() => {
     const saved = localStorage.getItem("sirene_params");
 
-    return saved
-      ? { ...DEFAULTS, ...JSON.parse(saved), apiKey: INSEE_API_KEY }
-      : DEFAULTS;
+    return saved ? { ...DEFAULTS, ...JSON.parse(saved) } : DEFAULTS;
   });
 
   const [rows, setRows] = useState<SireneEtablissement[]>([]);
@@ -48,10 +43,7 @@ export default function App() {
   const [modalOpen, setModalOpen] = useState(false);
 
   useEffect(() => {
-    localStorage.setItem(
-      "sirene_params",
-      JSON.stringify({ ...params, apiKey: INSEE_API_KEY }),
-    );
+    localStorage.setItem("sirene_params", JSON.stringify(params));
   }, [params]);
 
   const runSearch = async () => {
@@ -60,10 +52,7 @@ export default function App() {
     setDeptFilter("ALL");
 
     try {
-      const data = await fetchNewEtablissements({
-        ...params,
-        apiKey: INSEE_API_KEY,
-      });
+      const data = await fetchNewEtablissements(params);
 
       const enriched = data.map((e) => ({
         ...e,
@@ -134,7 +123,6 @@ export default function App() {
       />
 
       <SiretSearch
-        apiKey={INSEE_API_KEY}
         onFound={(e) => {
           setRows((prev) => {
             const enriched = {

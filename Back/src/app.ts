@@ -3,7 +3,6 @@ import cors from "cors";
 import dotenv from "dotenv";
 
 import searchRoute from "./routes/search";
-import e from "express";
 
 dotenv.config();
 
@@ -14,7 +13,7 @@ app.use(express.json());
 
 app.use("/search", searchRoute);
 
-// 🔥 GLOBAL ERROR HANDLER (CRITIQUE)
+// Global error handler
 app.use((err: any, req: any, res: any, next: any) => {
   console.error("GLOBAL ERROR:", err);
 
@@ -23,9 +22,4 @@ app.use((err: any, req: any, res: any, next: any) => {
   });
 });
 
-const PORT = 3001;
-
-app.listen(PORT, () => {
-  console.log(`API running on http://localhost:${PORT}`);
-});
 export default app;

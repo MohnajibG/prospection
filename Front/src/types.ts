@@ -1,7 +1,6 @@
 export type NafCode = "5610A" | "5610B" | "5610C" | "5630Z" | "5621Z";
 
 export type SearchParams = {
-  apiKey: string;
   nafCodes: NafCode[];
   daysBack: number;
   postalPrefix: string; // recherche par département (préfixe CP)
