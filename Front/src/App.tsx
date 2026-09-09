@@ -18,7 +18,7 @@ const DEFAULTS: SearchParams = {
 };
 
 function getDepartementFromCP(cp?: string): string | undefined {
-  if (!cp) return undefined;
+  if (!cp || !/^\d{5}$/.test(cp.trim())) return undefined;
   const clean = cp.trim();
   if (clean.startsWith("97")) return clean.slice(0, 3);
   return clean.slice(0, 2);

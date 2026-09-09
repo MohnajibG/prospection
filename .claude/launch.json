@@ -6,7 +6,8 @@
       "runtimeExecutable": "yarn",
       "runtimeArgs": ["dev"],
       "cwd": "Front",
-      "port": 5173
+      "port": 5173,
+      "autoPort": true
     }
   ]
 }

@@ -138,6 +138,7 @@ export async function fetchNewEtablissements(
 
   const out: SireneEtablissement[] = [];
   let anySuccess = false;
+  let lastErrorStatus: number | null = null;
 
   for (const naf of nafCodes) {
     // activitePrincipaleEtablissement est un champ historisé : il doit être
@@ -161,6 +162,7 @@ export async function fetchNewEtablissements(
       if (!res.ok) {
         const txt = await res.text();
         console.error("INSEE ERROR:", { status: res.status, query: q, body: txt });
+        lastErrorStatus = res.status;
         break;
       }
 
@@ -191,6 +193,12 @@ export async function fetchNewEtablissements(
   }
 
   if (!anySuccess) {
+    if (lastErrorStatus === 401 || lastErrorStatus === 403) {
+      throw new Error(
+        "Clé API INSEE invalide, expirée ou révoquée — vérifie INSEE_API_KEY dans Back/.env."
+      );
+    }
+
     throw new Error(
       "Impossible de contacter l'API INSEE (erreur serveur). Réessaie dans quelques minutes."
     );
@@ -216,6 +224,12 @@ export async function fetchEtablissementBySiret(
   const res = await fetchWithRetry(url, apiKey);
 
   if (res.status === 404) return null;
+
+  if (res.status === 401 || res.status === 403) {
+    throw new Error(
+      "Clé API INSEE invalide, expirée ou révoquée — vérifie INSEE_API_KEY dans Back/.env."
+    );
+  }
 
   if (!res.ok) {
     const txt = await res.text();
