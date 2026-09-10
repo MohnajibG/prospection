@@ -102,6 +102,12 @@ function mapEtablissement(e: any): SireneEtablissement {
   };
 }
 
+function isTransientStatus(status: number): boolean {
+  // 429 = limite de débit ; 5xx = indisponibilité ponctuelle côté INSEE
+  // (fréquente sous charge) — les deux valent la peine d'être retentées.
+  return status === 429 || status >= 500;
+}
+
 async function fetchWithRetry(url: URL, apiKey: string): Promise<Response> {
   let res: Response | undefined;
 
@@ -113,7 +119,7 @@ async function fetchWithRetry(url: URL, apiKey: string): Promise<Response> {
       },
     });
 
-    if (res.status !== 429) break;
+    if (!isTransientStatus(res.status)) break;
 
     await sleep(2500 * (attempt + 1));
   }
@@ -121,9 +127,14 @@ async function fetchWithRetry(url: URL, apiKey: string): Promise<Response> {
   return res!;
 }
 
+export type FetchNewEtablissementsResult = {
+  data: SireneEtablissement[];
+  warning?: string;
+};
+
 export async function fetchNewEtablissements(
   p: SearchParams
-): Promise<SireneEtablissement[]> {
+): Promise<FetchNewEtablissementsResult> {
   const apiKey = requireApiKey();
 
   const nafCodes = (p.nafCodes || []).map(formatNaf).filter(Boolean);
@@ -139,13 +150,19 @@ export async function fetchNewEtablissements(
   const out: SireneEtablissement[] = [];
   let anySuccess = false;
   let lastErrorStatus: number | null = null;
+  const failedNafs: string[] = [];
 
   for (const naf of nafCodes) {
     // activitePrincipaleEtablissement est un champ historisé : il doit être
     // interrogé via periode(...), sinon l'API renvoie une erreur de syntaxe.
-    const q = `periode(activitePrincipaleEtablissement:${naf})`;
+    // dateCreationEtablissement, elle, ne change jamais après création : on la
+    // filtre directement dans la requête pour éviter de paginer dans tout
+    // l'historique (des centaines de milliers d'établissements par NAF) alors
+    // qu'on ne veut que les `daysBack` derniers jours.
+    const q = `periode(activitePrincipaleEtablissement:${naf}) AND dateCreationEtablissement:[${start} TO *]`;
     let cursor = "*";
     let page = 0;
+    let nafSucceeded = false;
 
     while (true) {
       page++;
@@ -167,6 +184,7 @@ export async function fetchNewEtablissements(
       }
 
       anySuccess = true;
+      nafSucceeded = true;
 
       const data = await res.json();
       const etabs = (data.etablissements ?? [])
@@ -190,6 +208,8 @@ export async function fetchNewEtablissements(
 
       await sleep(2200); // throttle, ~27 requêtes/min max
     }
+
+    if (!nafSucceeded) failedNafs.push(naf);
   }
 
   if (!anySuccess) {
@@ -199,12 +219,28 @@ export async function fetchNewEtablissements(
       );
     }
 
+    if (lastErrorStatus === 429) {
+      throw new Error(
+        "Limite de débit INSEE atteinte (30 requêtes/min) — réessaie dans une minute."
+      );
+    }
+
     throw new Error(
       "Impossible de contacter l'API INSEE (erreur serveur). Réessaie dans quelques minutes."
     );
   }
 
-  return Array.from(new Map(out.map((e) => [e.siret, e])).values());
+  const data = Array.from(new Map(out.map((e) => [e.siret, e])).values());
+
+  if (failedNafs.length > 0) {
+    const cause = lastErrorStatus === 429 ? "limite de débit INSEE atteinte" : "erreur INSEE";
+    return {
+      data,
+      warning: `Résultats partiels : impossible de vérifier ${failedNafs.join(", ")} (${cause}). Réessaie dans une minute pour ces activités.`,
+    };
+  }
+
+  return { data };
 }
 
 export async function fetchEtablissementBySiret(

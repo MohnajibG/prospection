@@ -2,9 +2,14 @@ import { SearchParams, SireneEtablissement, WebPresenceResult } from "../types";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3001";
 
+export type SearchResult = {
+  rows: SireneEtablissement[];
+  warning?: string;
+};
+
 export async function fetchNewEtablissements(
   p: SearchParams
-): Promise<SireneEtablissement[]> {
+): Promise<SearchResult> {
   const res = await fetch(`${API_URL}/search`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -14,9 +19,9 @@ export async function fetchNewEtablissements(
   const data = await res.json();
 
   if (!res.ok) throw new Error(`API error ${res.status}`);
-  if (!Array.isArray(data)) throw new Error(data?.error ?? "Erreur inconnue");
+  if (data?.error) throw new Error(data.error);
 
-  return data;
+  return { rows: data.data ?? [], warning: data.warning };
 }
 
 export async function fetchEtablissementBySiret(

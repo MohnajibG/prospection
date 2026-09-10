@@ -35,6 +35,7 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [enriching, setEnriching] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [warning, setWarning] = useState<string | null>(null);
 
   const [deptFilter, setDeptFilter] = useState<string>("ALL");
   const [onlyNoSite, setOnlyNoSite] = useState(false);
@@ -52,10 +53,11 @@ export default function App() {
   const runSearch = async () => {
     setLoading(true);
     setError(null);
+    setWarning(null);
     setDeptFilter("ALL");
 
     try {
-      const data = await fetchNewEtablissements(params);
+      const { rows: data, warning: w } = await fetchNewEtablissements(params);
 
       const enriched = data.map((e) => ({
         ...e,
@@ -70,6 +72,7 @@ export default function App() {
       );
 
       setRows(enriched);
+      if (w) setWarning(w);
     } catch (e: any) {
       setError(e?.message ?? "Erreur inconnue");
     } finally {
@@ -214,6 +217,13 @@ export default function App() {
         <div className="card error">
           <IconAlert size={17} />
           {error}
+        </div>
+      )}
+
+      {warning && (
+        <div className="card warning">
+          <IconAlert size={17} />
+          {warning}
         </div>
       )}
 
