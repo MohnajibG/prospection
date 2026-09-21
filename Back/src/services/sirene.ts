@@ -177,6 +177,15 @@ export async function fetchNewEtablissements(
       const res = await fetchWithRetry(url, apiKey);
 
       if (!res.ok) {
+        // L'API Sirene renvoie 404 quand la requête ne matche aucun
+        // établissement (ex : aucune cafétéria créée récemment dans la
+        // zone) — ce n'est pas une erreur, juste un résultat vide.
+        if (res.status === 404) {
+          anySuccess = true;
+          nafSucceeded = true;
+          break;
+        }
+
         const txt = await res.text();
         console.error("INSEE ERROR:", { status: res.status, query: q, body: txt });
         lastErrorStatus = res.status;

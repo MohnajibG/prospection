@@ -34,3 +34,5 @@ export type WebPresenceResult = {
   website?: string;
   hasWebsite: boolean;
 };
+
+export type PresenceFilter = "ALL" | "sans_site" | "avec_site" | "inconnu";

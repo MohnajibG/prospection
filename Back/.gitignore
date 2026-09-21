@@ -11,6 +11,9 @@ pnpm-debug.log*
 .env.*.local
 !.env.example
 
+# Port choisi automatiquement au démarrage (voir src/server.ts)
+.port
+
 # Build / output
 dist/
 build/

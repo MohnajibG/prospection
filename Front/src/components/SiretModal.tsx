@@ -4,17 +4,90 @@ import {
   IconCheck,
   IconClose,
   IconCopy,
+  IconExternal,
   IconFacebook,
   IconInstagram,
+  IconMail,
   IconMaps,
+  IconPhone,
 } from "./Icons";
+
+function PresenceStatus({
+  etab,
+  onMessageClick,
+}: {
+  etab: SireneEtablissement;
+  onMessageClick?: (row: SireneEtablissement) => void;
+}) {
+  if (etab.presenceWeb === "sans_site") {
+    return (
+      <div className="modal-status modal-status--lead">
+        <div className="row between" style={{ alignItems: "flex-start" }}>
+          <div>
+            <span className="badge lead">🎯 Pas de site (vérifié via Google)</span>
+            {etab.telephone && (
+              <a href={`tel:${etab.telephone}`} className="siret-btn" style={{ marginTop: 8 }}>
+                <IconPhone size={13} />
+                {etab.telephone}
+              </a>
+            )}
+          </div>
+
+          <button
+            type="button"
+            className="btn"
+            onClick={() => onMessageClick?.(etab)}
+          >
+            <IconMail size={15} />
+            Message
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (etab.presenceWeb === "avec_site") {
+    return (
+      <div className="modal-status">
+        <span className="muted" style={{ fontSize: 12.5 }}>
+          Vérifié via Google — a déjà un site
+        </span>
+        <div className="row" style={{ marginTop: 6, gap: 14, flexWrap: "wrap" }}>
+          {etab.siteWeb && (
+            <a href={etab.siteWeb} target="_blank" rel="noopener noreferrer" className="siret-btn">
+              {etab.siteWeb.replace(/^https?:\/\//, "")}
+              <IconExternal size={12} />
+            </a>
+          )}
+          {etab.telephone && (
+            <a href={`tel:${etab.telephone}`} className="siret-btn">
+              <IconPhone size={13} />
+              {etab.telephone}
+            </a>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="modal-status">
+      <span className="muted" style={{ fontSize: 12.5 }}>
+        Pas encore vérifié via Google — utilise "Revérifier la présence web", ou
+        cherche manuellement ci-dessous.
+      </span>
+    </div>
+  );
+}
 
 export default function SiretModal({
   etab,
   onClose,
+  onMessageClick,
 }: {
   etab: SireneEtablissement | null;
   onClose: () => void;
+  onMessageClick?: (row: SireneEtablissement) => void;
 }) {
   const [copied, setCopied] = useState(false);
 
@@ -89,7 +162,11 @@ export default function SiretModal({
         </div>
 
         <div className="modal-body">
-          <p>Choisis un canal pour rechercher des coordonnées / présence en ligne :</p>
+          <PresenceStatus etab={etab} onMessageClick={onMessageClick} />
+
+          <p style={{ marginTop: 16 }}>
+            Recherche manuelle complémentaire (email, WhatsApp...) :
+          </p>
 
           <div className="channel-grid">
             <button className="channel-btn" onClick={onGoogle}>
@@ -106,12 +183,6 @@ export default function SiretModal({
               <IconInstagram size={20} />
               Instagram
             </button>
-          </div>
-
-          <div className="modal-tip">
-            Astuce : commence par Google / Maps pour trouver la fiche
-            (téléphone, site), puis vérifie Facebook/Instagram pour l'email
-            ou WhatsApp.
           </div>
         </div>
       </div>

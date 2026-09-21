@@ -2,6 +2,12 @@ import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
 import { SireneEtablissement } from "../types";
 
+const PRESENCE_LABELS: Record<string, string> = {
+  sans_site: "Pas de site",
+  avec_site: "A un site",
+  inconnu: "Non vérifié",
+};
+
 export function toExcel(rows: SireneEtablissement[]) {
   // On transforme les rows en objets "plats" + noms de colonnes propres
   const data = rows.map((r) => ({
@@ -13,6 +19,9 @@ export function toExcel(rows: SireneEtablissement[]) {
     CP: r.codePostalEtablissement || "",
     Département: r.departement || "",
     Ville: r.libelleCommuneEtablissement || "",
+    Téléphone: r.telephone || "",
+    "Site web": r.siteWeb || "",
+    "Présence web": r.presenceWeb ? PRESENCE_LABELS[r.presenceWeb] ?? r.presenceWeb : "",
   }));
 
   // Worksheet + Workbook

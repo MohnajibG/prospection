@@ -1,6 +1,5 @@
 import { SearchParams, SireneEtablissement, WebPresenceResult } from "../types";
-
-const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3001";
+import { backendFetch } from "../lib/backendDiscovery";
 
 export type SearchResult = {
   rows: SireneEtablissement[];
@@ -10,7 +9,7 @@ export type SearchResult = {
 export async function fetchNewEtablissements(
   p: SearchParams
 ): Promise<SearchResult> {
-  const res = await fetch(`${API_URL}/search`, {
+  const res = await backendFetch("/search", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(p),
@@ -28,7 +27,7 @@ export async function fetchEtablissementBySiret(
   siret: string
 ): Promise<SireneEtablissement | null> {
   const clean = siret.replace(/\s+/g, "");
-  const res = await fetch(`${API_URL}/search/siret/${clean}`);
+  const res = await backendFetch(`/search/siret/${clean}`);
 
   if (res.status === 404) return null;
 
@@ -48,7 +47,7 @@ export async function enrichWebPresence(
     commune?: string;
   }[]
 ): Promise<Record<string, WebPresenceResult>> {
-  const res = await fetch(`${API_URL}/search/enrich`, {
+  const res = await backendFetch("/search/enrich", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ rows }),

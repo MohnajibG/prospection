@@ -11,6 +11,13 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// Utilisé par le Front pour retrouver automatiquement le port du backend
+// (voir Front/src/lib/backendDiscovery.ts) — pas de dépendance externe,
+// doit répondre instantanément.
+app.get("/health", (_req, res) => {
+  res.json({ ok: true, service: "sirene-prospection-back" });
+});
+
 app.use("/search", searchRoute);
 
 // Global error handler

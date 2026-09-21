@@ -1,3 +1,6 @@
+import { findViaGooglePlaces } from "./googlePlaces";
+import { nameSimilar } from "./nameMatch";
+
 const GEOCODE_URL = "https://api-adresse.data.gouv.fr/search/";
 const OVERPASS_URL = "https://overpass-api.de/api/interpreter";
 
@@ -29,22 +32,6 @@ type OsmCandidate = Point & {
   website?: string;
   siret?: string;
 };
-
-function normalize(s: string): string {
-  return s
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, " ")
-    .trim();
-}
-
-function nameSimilar(a: string, b: string): boolean {
-  const na = normalize(a);
-  const nb = normalize(b);
-  if (na.length < 3 || nb.length < 3) return false;
-  return na.includes(nb) || nb.includes(na);
-}
 
 function haversineMeters(a: Point, b: Point): number {
   const R = 6371000;
@@ -159,19 +146,17 @@ async function fetchOsmCandidates(bbox: {
     .filter((c: OsmCandidate) => c.lat != null && c.lon != null);
 }
 
-export async function findWebPresence(
+async function findViaOsm(
   rows: WebPresenceInput[],
-): Promise<Map<string, WebPresenceResult>> {
-  const result = new Map<string, WebPresenceResult>();
-  const limited = rows.slice(0, MAX_ROWS);
-
-  const points = await geocodeAll(limited);
-  if (points.size === 0) return result;
+  result: Map<string, WebPresenceResult>,
+): Promise<void> {
+  const points = await geocodeAll(rows);
+  if (points.size === 0) return;
 
   const bbox = buildBbox(Array.from(points.values()));
   const candidates = await fetchOsmCandidates(bbox);
 
-  for (const row of limited) {
+  for (const row of rows) {
     const point = points.get(row.siret);
     if (!point) continue;
 
@@ -206,6 +191,29 @@ export async function findWebPresence(
       website: best.website,
       hasWebsite: !!best.website,
     });
+  }
+}
+
+export async function findWebPresence(
+  rows: WebPresenceInput[],
+): Promise<Map<string, WebPresenceResult>> {
+  const result = new Map<string, WebPresenceResult>();
+  const limited = rows.slice(0, MAX_ROWS);
+
+  const apiKey = process.env.GOOGLE_PLACES_API_KEY;
+  let remaining = limited;
+
+  if (apiKey) {
+    const googleResults = await findViaGooglePlaces(limited, apiKey);
+    for (const [siret, r] of googleResults) result.set(siret, r);
+
+    // Ce que Google n'a pas trouvé (ou pas interrogé, ex : pas de nom) part
+    // en second passage sur OSM, gratuit.
+    remaining = limited.filter((r) => !result.get(r.siret)?.matched);
+  }
+
+  if (remaining.length > 0) {
+    await findViaOsm(remaining, result);
   }
 
   return result;

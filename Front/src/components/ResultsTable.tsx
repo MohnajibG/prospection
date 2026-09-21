@@ -1,33 +1,100 @@
 import { SireneEtablissement } from "../types";
-import { IconExternal, IconInbox, IconPhone } from "./Icons";
+import { IconCheck, IconClose, IconExternal, IconInbox, IconMail, IconPhone } from "./Icons";
 
-function WebPresenceCell({ r }: { r: SireneEtablissement }) {
+function WebPresenceCell({
+  r,
+  isContacted,
+  onMessageClick,
+  onToggleContacted,
+}: {
+  r: SireneEtablissement;
+  isContacted: boolean;
+  onMessageClick?: (row: SireneEtablissement) => void;
+  onToggleContacted?: (siret: string) => void;
+}) {
+  const isLead = r.presenceWeb === "sans_site";
+
+  const mailTitle = isLead
+    ? "Générer un message de prospection"
+    : r.presenceWeb === "avec_site"
+      ? "Cet établissement a déjà un site — pas besoin de message"
+      : "Vérifie d'abord la présence web (bouton « Revérifier ») pour pouvoir générer un message";
+
+  const mailButton = (
+    <button
+      type="button"
+      className="icon-btn"
+      title={mailTitle}
+      disabled={!isLead}
+      onClick={() => isLead && onMessageClick?.(r)}
+    >
+      <IconMail size={15} />
+    </button>
+  );
+
   if (r.presenceWeb === "sans_site") {
-    return <span className="badge lead">🎯 Pas de site</span>;
-  }
-
-  if (r.presenceWeb === "avec_site") {
-    return r.siteWeb ? (
-      <a href={r.siteWeb} target="_blank" rel="noopener noreferrer" className="siret-btn">
-        A un site
-        <IconExternal size={12} />
-      </a>
-    ) : (
-      <span className="muted-cell">A un site</span>
+    return (
+      <div className="row" style={{ gap: 6 }}>
+        {isContacted ? (
+          <span className="badge contacted">✅ Contacté</span>
+        ) : (
+          <span className="badge lead">🎯 Pas de site</span>
+        )}
+        {mailButton}
+        <button
+          type="button"
+          className="icon-btn"
+          title={isContacted ? "Retirer le statut « contacté »" : "Marquer comme contacté"}
+          onClick={() => onToggleContacted?.(r.siret)}
+        >
+          {isContacted ? <IconClose size={15} /> : <IconCheck size={15} />}
+        </button>
+      </div>
     );
   }
 
-  return <span className="muted-cell">—</span>;
+  if (r.presenceWeb === "avec_site") {
+    return (
+      <div className="row" style={{ gap: 6 }}>
+        {r.siteWeb ? (
+          <a href={r.siteWeb} target="_blank" rel="noopener noreferrer" className="siret-btn">
+            A un site
+            <IconExternal size={12} />
+          </a>
+        ) : (
+          <span className="muted-cell">A un site</span>
+        )}
+        {mailButton}
+      </div>
+    );
+  }
+
+  return (
+    <div className="row" style={{ gap: 6 }}>
+      <span className="muted-cell">—</span>
+      {mailButton}
+    </div>
+  );
 }
 
 export default function ResultsTable({
   rows,
   highlightSiret,
+  contacted,
+  sortDir,
   onSiretClick,
+  onMessageClick,
+  onToggleContacted,
+  onToggleSort,
 }: {
   rows: SireneEtablissement[];
   highlightSiret?: string | null;
+  contacted: Set<string>;
+  sortDir: "asc" | "desc";
   onSiretClick?: (siret: string, row: SireneEtablissement) => void;
+  onMessageClick?: (row: SireneEtablissement) => void;
+  onToggleContacted?: (siret: string) => void;
+  onToggleSort?: () => void;
 }) {
   if (!rows.length) {
     return (
@@ -50,7 +117,12 @@ export default function ResultsTable({
             <th>SIRET</th>
             <th>Nom</th>
             <th>NAF</th>
-            <th>Date création</th>
+            <th>
+              <button type="button" className="th-sort" onClick={onToggleSort}>
+                Date création
+                <span className="th-sort__arrow">{sortDir === "desc" ? "↓" : "↑"}</span>
+              </button>
+            </th>
             <th>Adresse</th>
             <th>CP</th>
             <th>Département</th>
@@ -64,9 +136,16 @@ export default function ResultsTable({
           {rows.map((r) => {
             const nom = r.denominationUniteLegale || r.nomUniteLegale || "—";
             const isHighlighted = highlightSiret === r.siret;
+            const isContacted = contacted.has(r.siret);
+            const rowClass = [
+              isHighlighted ? "row-highlight" : "",
+              isContacted ? "row-contacted" : "",
+            ]
+              .filter(Boolean)
+              .join(" ");
 
             return (
-              <tr key={r.siret} className={isHighlighted ? "row-highlight" : ""}>
+              <tr key={r.siret} className={rowClass}>
                 <td>
                   <button
                     className="siret-btn"
@@ -109,7 +188,12 @@ export default function ResultsTable({
                   )}
                 </td>
                 <td>
-                  <WebPresenceCell r={r} />
+                  <WebPresenceCell
+                    r={r}
+                    isContacted={isContacted}
+                    onMessageClick={onMessageClick}
+                    onToggleContacted={onToggleContacted}
+                  />
                 </td>
               </tr>
             );

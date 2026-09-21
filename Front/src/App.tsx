@@ -3,11 +3,26 @@ import Filters from "./components/Filters";
 import ResultsTable from "./components/ResultsTable";
 import SiretSearch from "./components/SiretSearch";
 import SiretModal from "./components/SiretModal";
+import MessageModal from "./components/MessageModal";
+import SenderSettings from "./components/SenderSettings";
+import StatCards from "./components/StatCards";
 import { fetchNewEtablissements, enrichWebPresence } from "./api/sirene";
-import { SearchParams, SireneEtablissement } from "./types";
-import { toCSV, downloadCSV } from "./lib/csv";
+import { PresenceFilter, SearchParams, SireneEtablissement } from "./types";
+import { toCSV, downloadCSV, downloadText } from "./lib/csv";
 import { downloadExcel } from "./lib/excel";
-import { IconAlert, IconDownload, IconSpinner, IconTarget } from "./components/Icons";
+import { buildOutreachMessage, toOutreachText } from "./lib/messageTemplate";
+import { getSenderProfile, saveSenderProfile, SenderProfile } from "./lib/senderProfile";
+import { getContactedSet, setContacted } from "./lib/contactStatus";
+import { getLeadEmails, setLeadEmail } from "./lib/leadEmails";
+import {
+  IconAlert,
+  IconChevronDown,
+  IconDownload,
+  IconMail,
+  IconSettings,
+  IconSpinner,
+  IconTarget,
+} from "./components/Icons";
 
 const DEFAULTS: SearchParams = {
   nafCodes: ["5610A", "5610C", "5621Z"],
@@ -38,54 +53,42 @@ export default function App() {
   const [warning, setWarning] = useState<string | null>(null);
 
   const [deptFilter, setDeptFilter] = useState<string>("ALL");
-  const [onlyNoSite, setOnlyNoSite] = useState(false);
+  const [presenceFilter, setPresenceFilter] = useState<PresenceFilter>("ALL");
+  const [hideContacted, setHideContacted] = useState(false);
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [highlightSiret, setHighlightSiret] = useState<string | null>(null);
+  const [siretSearchOpen, setSiretSearchOpen] = useState(false);
+
+  const [contacted, setContactedState] = useState<Set<string>>(() => getContactedSet());
+  const [leadEmails, setLeadEmailsState] = useState<Record<string, string>>(() =>
+    getLeadEmails(),
+  );
 
   const [selectedEtab, setSelectedEtab] = useState<SireneEtablissement | null>(
     null,
   );
   const [modalOpen, setModalOpen] = useState(false);
 
+  const [senderProfile, setSenderProfile] = useState<SenderProfile>(() =>
+    getSenderProfile(),
+  );
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [messageEtab, setMessageEtab] = useState<SireneEtablissement | null>(
+    null,
+  );
+
   useEffect(() => {
     localStorage.setItem("sirene_params", JSON.stringify(params));
   }, [params]);
 
-  const runSearch = async () => {
-    setLoading(true);
-    setError(null);
-    setWarning(null);
-    setDeptFilter("ALL");
+  const enrichRows = async (targetRows: SireneEtablissement[]) => {
+    if (!targetRows.length) return;
 
-    try {
-      const { rows: data, warning: w } = await fetchNewEtablissements(params);
-
-      const enriched = data.map((e) => ({
-        ...e,
-        departement: getDepartementFromCP(e.codePostalEtablissement),
-      }));
-
-      // tri stable
-      enriched.sort((a, b) =>
-        (b.dateCreationEtablissement ?? "").localeCompare(
-          a.dateCreationEtablissement ?? "",
-        ),
-      );
-
-      setRows(enriched);
-      if (w) setWarning(w);
-    } catch (e: any) {
-      setError(e?.message ?? "Erreur inconnue");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const runEnrich = async () => {
     setEnriching(true);
     setError(null);
 
     try {
-      const targets = filteredRows.map((r) => ({
+      const targets = targetRows.map((r) => ({
         siret: r.siret,
         nom: r.denominationUniteLegale || r.nomUniteLegale,
         adresse: r.adresse,
@@ -119,6 +122,43 @@ export default function App() {
     }
   };
 
+  const runEnrich = () => enrichRows(filteredRows);
+
+  const runSearch = async () => {
+    setLoading(true);
+    setError(null);
+    setWarning(null);
+    setDeptFilter("ALL");
+    setPresenceFilter("ALL");
+
+    try {
+      const { rows: data, warning: w } = await fetchNewEtablissements(params);
+
+      const enriched = data.map((e) => ({
+        ...e,
+        departement: getDepartementFromCP(e.codePostalEtablissement),
+      }));
+
+      // tri stable
+      enriched.sort((a, b) =>
+        (b.dateCreationEtablissement ?? "").localeCompare(
+          a.dateCreationEtablissement ?? "",
+        ),
+      );
+
+      setRows(enriched);
+      if (w) setWarning(w);
+      setLoading(false);
+
+      // Le résultat de recherche arrive déjà enrichi via Google Places,
+      // sans étape manuelle supplémentaire.
+      await enrichRows(enriched);
+    } catch (e: any) {
+      setError(e?.message ?? "Erreur inconnue");
+      setLoading(false);
+    }
+  };
+
   const handleSiretClick = (_siret: string, row: SireneEtablissement) => {
     setSelectedEtab(row);
     setModalOpen(true);
@@ -129,25 +169,66 @@ export default function App() {
     setSelectedEtab(null);
   };
 
+  const handleMessageClick = (row: SireneEtablissement) => {
+    setMessageEtab(row);
+  };
+
+  const handleSaveSenderProfile = (profile: SenderProfile) => {
+    setSenderProfile(profile);
+    saveSenderProfile(profile);
+  };
+
+  const handleToggleContacted = (siret: string) => {
+    setContactedState((prev) => setContacted(prev, siret, !prev.has(siret)));
+  };
+
+  const handleLeadEmailChange = (siret: string, email: string) => {
+    setLeadEmailsState((prev) => setLeadEmail(prev, siret, email));
+  };
+
   const deptOptions = useMemo(() => {
     const set = new Set<string>();
     for (const r of rows) if (r.departement) set.add(r.departement);
     return Array.from(set).sort();
   }, [rows]);
 
-  const filteredRows = useMemo(() => {
-    let list =
-      deptFilter === "ALL" ? rows : rows.filter((r) => r.departement === deptFilter);
-
-    if (onlyNoSite) list = list.filter((r) => r.presenceWeb === "sans_site");
-
-    return list;
-  }, [rows, deptFilter, onlyNoSite]);
-
-  const noSiteCount = useMemo(
-    () => rows.filter((r) => r.presenceWeb === "sans_site").length,
-    [rows],
+  const deptFilteredRows = useMemo(
+    () => (deptFilter === "ALL" ? rows : rows.filter((r) => r.departement === deptFilter)),
+    [rows, deptFilter],
   );
+
+  const stats = useMemo(
+    () => ({
+      total: deptFilteredRows.length,
+      sansSite: deptFilteredRows.filter((r) => r.presenceWeb === "sans_site").length,
+      avecSite: deptFilteredRows.filter((r) => r.presenceWeb === "avec_site").length,
+      inconnu: deptFilteredRows.filter((r) => !r.presenceWeb || r.presenceWeb === "inconnu")
+        .length,
+    }),
+    [deptFilteredRows],
+  );
+
+  const filteredRows = useMemo(() => {
+    let list = deptFilteredRows;
+
+    if (presenceFilter !== "ALL") {
+      list =
+        presenceFilter === "inconnu"
+          ? list.filter((r) => !r.presenceWeb || r.presenceWeb === "inconnu")
+          : list.filter((r) => r.presenceWeb === presenceFilter);
+    }
+
+    if (hideContacted) list = list.filter((r) => !contacted.has(r.siret));
+
+    return [...list].sort((a, b) => {
+      const cmp = (a.dateCreationEtablissement ?? "").localeCompare(
+        b.dateCreationEtablissement ?? "",
+      );
+      return sortDir === "desc" ? -cmp : cmp;
+    });
+  }, [deptFilteredRows, presenceFilter, hideContacted, contacted, sortDir]);
+
+  const noSiteCount = stats.sansSite;
 
   const exportCSV = () => {
     const csv = toCSV(filteredRows);
@@ -160,134 +241,238 @@ export default function App() {
     downloadExcel(filename, filteredRows);
   };
 
+  const exportMessages = () => {
+    const leads = filteredRows.filter((r) => r.presenceWeb === "sans_site");
+    const entries = leads.map((row) => ({
+      row,
+      ...buildOutreachMessage(row, senderProfile),
+    }));
+    const text = toOutreachText(entries);
+    const filename = `messages_prospection_${deptFilter}_${params.daysBack}j.txt`;
+    downloadText(filename, text);
+  };
+
   return (
-    <div className="container">
-      <header className="app-header">
-        <div className="app-header__brand">
-          <div className="app-header__logo">🧾</div>
+    <div className="app-shell">
+      <header className="topbar">
+        <div className="topbar__brand">
+          <div className="topbar__logo">🧾</div>
           <div>
-            <h1>Sirene Prospection</h1>
-            <div className="app-header__subtitle">
-              Nouveaux établissements — recherche INSEE
-            </div>
+            <h1>LeadRadar</h1>
+            <div className="topbar__subtitle">Nouveaux établissements — recherche INSEE + Google Places</div>
           </div>
         </div>
 
-        <div className="app-header__badge">
-          <span className="app-header__badge-dot" />
-          {rows.length
-            ? `${rows.length} établissement${rows.length > 1 ? "s" : ""}`
-            : "Backend sécurisé"}
+        <div className="row" style={{ gap: 10 }}>
+          <div className="topbar__badge">
+            <span className="topbar__badge-dot" />
+            Backend sécurisé
+          </div>
+
+          <button
+            type="button"
+            className="icon-btn"
+            title="Mes coordonnées (signature des messages)"
+            onClick={() => setSettingsOpen(true)}
+          >
+            <IconSettings size={18} />
+          </button>
         </div>
       </header>
 
-      <Filters
-        value={params}
-        onChange={setParams}
-        onSubmit={runSearch}
-        loading={loading}
-      />
+      <div className="shell">
+        <aside className="sidebar">
+          <div className="step-label">Rechercher</div>
 
-      <SiretSearch
-        onFound={(e) => {
-          setRows((prev) => {
-            const enriched = {
-              ...e,
-              departement: getDepartementFromCP(e.codePostalEtablissement),
-            };
+          <Filters value={params} onChange={setParams} onSubmit={runSearch} loading={loading} />
 
-            const exists = prev.find((x) => x.siret === e.siret);
+          <button
+            type="button"
+            className="disclosure"
+            onClick={() => setSiretSearchOpen((v) => !v)}
+            aria-expanded={siretSearchOpen}
+          >
+            <IconChevronDown
+              size={14}
+              className={siretSearchOpen ? "disclosure__chevron open" : "disclosure__chevron"}
+            />
+            Ajouter un établissement précis par SIRET
+          </button>
 
-            if (exists) {
-              return prev.map((x) =>
-                x.siret === e.siret ? { ...x, ...enriched } : x,
-              );
-            }
+          {siretSearchOpen && (
+            <SiretSearch
+              onFound={(e) => {
+                const enriched = {
+                  ...e,
+                  departement: getDepartementFromCP(e.codePostalEtablissement),
+                };
 
-            return [enriched, ...prev];
-          });
+                setRows((prev) => {
+                  const exists = prev.find((x) => x.siret === e.siret);
 
-          setHighlightSiret(e.siret);
-          setTimeout(() => setHighlightSiret(null), 3000);
-          setDeptFilter("ALL");
-        }}
-      />
+                  if (exists) {
+                    return prev.map((x) =>
+                      x.siret === e.siret ? { ...x, ...enriched } : x,
+                    );
+                  }
 
-      {error && (
-        <div className="card error">
-          <IconAlert size={17} />
-          {error}
-        </div>
+                  return [enriched, ...prev];
+                });
+
+                setHighlightSiret(e.siret);
+                setTimeout(() => setHighlightSiret(null), 3000);
+                setDeptFilter("ALL");
+
+                void enrichRows([enriched]);
+              }}
+            />
+          )}
+        </aside>
+
+        <main className="main">
+          {error && (
+            <div className="card error">
+              <IconAlert size={17} />
+              {error}
+            </div>
+          )}
+
+          {warning && (
+            <div className="card warning">
+              <IconAlert size={17} />
+              {warning}
+            </div>
+          )}
+
+          {!rows.length ? (
+            <ResultsTable
+              rows={filteredRows}
+              highlightSiret={highlightSiret}
+              contacted={contacted}
+              sortDir={sortDir}
+              onToggleSort={() => setSortDir((d) => (d === "desc" ? "asc" : "desc"))}
+              onToggleContacted={handleToggleContacted}
+              onSiretClick={handleSiretClick}
+              onMessageClick={handleMessageClick}
+            />
+          ) : (
+            <>
+              <div className="step-label">Qualifier &amp; prospecter</div>
+
+              <StatCards
+                total={stats.total}
+                sansSite={stats.sansSite}
+                avecSite={stats.avecSite}
+                inconnu={stats.inconnu}
+                active={presenceFilter}
+                onSelect={setPresenceFilter}
+              />
+
+              <div className="card toolbar">
+                {deptOptions.length > 1 ? (
+                  <div className="segmented" style={{ overflowX: "auto", maxWidth: "100%" }}>
+                    <button
+                      type="button"
+                      className={deptFilter === "ALL" ? "active" : ""}
+                      onClick={() => setDeptFilter("ALL")}
+                    >
+                      Tous ({rows.length})
+                    </button>
+                    {deptOptions.map((d) => (
+                      <button
+                        type="button"
+                        key={d}
+                        className={deptFilter === d ? "active" : ""}
+                        onClick={() => setDeptFilter(d)}
+                      >
+                        {d} ({rows.filter((r) => r.departement === d).length})
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <span className="muted" style={{ fontSize: 13 }}>
+                    {filteredRows.length} établissement{filteredRows.length > 1 ? "s" : ""} affiché
+                    {filteredRows.length > 1 ? "s" : ""}
+                  </span>
+                )}
+
+                <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
+                  <button
+                    type="button"
+                    className={`chip ${hideContacted ? "active" : ""}`}
+                    onClick={() => setHideContacted((v) => !v)}
+                    aria-pressed={hideContacted}
+                  >
+                    Masquer les contactés
+                  </button>
+
+                  <button className="btn secondary" onClick={runEnrich} disabled={enriching}>
+                    {enriching ? <IconSpinner size={15} /> : <IconTarget size={15} />}
+                    {enriching ? "Vérification..." : "Revérifier la présence web"}
+                  </button>
+
+                  {noSiteCount > 0 && (
+                    <button className="btn secondary" onClick={exportMessages}>
+                      <IconMail size={15} />
+                      Exporter messages ({filteredRows.filter((r) => r.presenceWeb === "sans_site").length})
+                    </button>
+                  )}
+
+                  <button className="btn secondary" onClick={exportCSV}>
+                    <IconDownload size={15} />
+                    CSV
+                  </button>
+                  <button className="btn" onClick={exportExcel}>
+                    <IconDownload size={15} />
+                    Excel
+                  </button>
+                </div>
+              </div>
+
+              <ResultsTable
+                rows={filteredRows}
+                highlightSiret={highlightSiret}
+                contacted={contacted}
+                sortDir={sortDir}
+                onToggleSort={() => setSortDir((d) => (d === "desc" ? "asc" : "desc"))}
+                onToggleContacted={handleToggleContacted}
+                onSiretClick={handleSiretClick}
+                onMessageClick={handleMessageClick}
+              />
+            </>
+          )}
+        </main>
+      </div>
+
+      {modalOpen && (
+        <SiretModal
+          etab={selectedEtab}
+          onClose={closeModal}
+          onMessageClick={(row) => {
+            closeModal();
+            handleMessageClick(row);
+          }}
+        />
       )}
 
-      {warning && (
-        <div className="card warning">
-          <IconAlert size={17} />
-          {warning}
-        </div>
-      )}
-
-      {!!rows.length && (
-        <div className="card row between">
-          <div className="segmented" style={{ overflowX: "auto", maxWidth: "100%" }}>
-            <button
-              type="button"
-              className={deptFilter === "ALL" ? "active" : ""}
-              onClick={() => setDeptFilter("ALL")}
-            >
-              Tous ({rows.length})
-            </button>
-            {deptOptions.map((d) => (
-              <button
-                type="button"
-                key={d}
-                className={deptFilter === d ? "active" : ""}
-                onClick={() => setDeptFilter(d)}
-              >
-                {d} ({rows.filter((r) => r.departement === d).length})
-              </button>
-            ))}
-          </div>
-
-          <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
-            <button
-              type="button"
-              className={`chip ${onlyNoSite ? "active" : ""}`}
-              onClick={() => setOnlyNoSite((v) => !v)}
-              aria-pressed={onlyNoSite}
-            >
-              🎯 Sans site uniquement
-              {noSiteCount > 0 && <span className="chip-code">{noSiteCount}</span>}
-            </button>
-
-            <button className="btn secondary" onClick={runEnrich} disabled={enriching}>
-              {enriching ? <IconSpinner size={15} /> : <IconTarget size={15} />}
-              {enriching ? "Vérification..." : "Vérifier la présence web"}
-            </button>
-
-            <button className="btn secondary" onClick={exportCSV}>
-              <IconDownload size={15} />
-              CSV
-            </button>
-            <button className="btn" onClick={exportExcel}>
-              <IconDownload size={15} />
-              Excel
-            </button>
-          </div>
-        </div>
-      )}
-
-      <ResultsTable
-        rows={filteredRows}
-        highlightSiret={highlightSiret}
-        onSiretClick={handleSiretClick}
+      <MessageModal
+        etab={messageEtab}
+        profile={senderProfile}
+        email={(messageEtab && leadEmails[messageEtab.siret]) || ""}
+        isContacted={!!messageEtab && contacted.has(messageEtab.siret)}
+        onEmailChange={handleLeadEmailChange}
+        onToggleContacted={handleToggleContacted}
+        onClose={() => setMessageEtab(null)}
       />
 
-      {modalOpen && <SiretModal etab={selectedEtab} onClose={closeModal} />}
+      <SenderSettings
+        open={settingsOpen}
+        profile={senderProfile}
+        onSave={handleSaveSenderProfile}
+        onClose={() => setSettingsOpen(false)}
+      />
 
-      <footer className="app-footer">
-        INSEE SIRENE API • backend filtré (safe mode)
-      </footer>
+      <footer className="app-footer">INSEE SIRENE API • backend filtré (safe mode)</footer>
     </div>
   );
 }
