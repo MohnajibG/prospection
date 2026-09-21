@@ -3,7 +3,8 @@ import type { SireneEtablissement } from "../types";
 import type { SenderProfile } from "../lib/senderProfile";
 import { buildOutreachMessage } from "../lib/messageTemplate";
 import { buildGmailComposeUrl } from "../lib/gmail";
-import { IconCheck, IconClose, IconCopy, IconMail, IconPhone } from "./Icons";
+import { buildEmailSearchUrl } from "../lib/searchLinks";
+import { IconCheck, IconClose, IconCopy, IconMail, IconPhone, IconSearch } from "./Icons";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -75,15 +76,27 @@ export default function MessageModal({
         <div className="modal-body">
           <div className="field">
             <label>Email destinataire</label>
-            <input
-              type="email"
-              placeholder="contact@exemple.fr"
-              value={email}
-              onChange={(e) => onEmailChange(etab.siret, e.target.value)}
-            />
+            <div className="row" style={{ gap: 8 }}>
+              <input
+                type="email"
+                placeholder="contact@exemple.fr"
+                value={email}
+                onChange={(e) => onEmailChange(etab.siret, e.target.value)}
+              />
+              <a
+                href={buildEmailSearchUrl(name, etab.libelleCommuneEtablissement)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn secondary"
+                style={{ whiteSpace: "nowrap" }}
+              >
+                <IconSearch size={14} />
+                Chercher
+              </a>
+            </div>
             <small>
-              Ni SIRENE ni Google ne donnent l'email de ce type de commerce — à trouver
-              manuellement (site, réseaux sociaux) et à saisir ici.
+              Ni SIRENE ni Google ne donnent l'email de ce type de commerce — le bouton
+              "Chercher" lance une recherche Google ciblée (pas garanti, mais gratuit).
             </small>
           </div>
 

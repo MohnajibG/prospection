@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { SireneEtablissement } from "../types";
+import { buildEmailSearchUrl } from "../lib/searchLinks";
 import {
   IconCheck,
   IconClose,
@@ -10,6 +11,7 @@ import {
   IconMail,
   IconMaps,
   IconPhone,
+  IconSearch,
 } from "./Icons";
 
 function PresenceStatus({
@@ -125,6 +127,10 @@ export default function SiretModal({
     open(ig);
   };
 
+  const onSearchEmail = () => {
+    open(buildEmailSearchUrl(name, city));
+  };
+
   const onCopySiret = async () => {
     try {
       await navigator.clipboard.writeText(etab.siret);
@@ -182,6 +188,11 @@ export default function SiretModal({
             <button className="channel-btn" onClick={onInstagram}>
               <IconInstagram size={20} />
               Instagram
+            </button>
+
+            <button className="channel-btn" onClick={onSearchEmail}>
+              <IconSearch size={20} />
+              Chercher l'email
             </button>
           </div>
         </div>
