@@ -29,12 +29,14 @@ import {
   setStatus,
 } from "./lib/pipeline";
 import { getLeadEmails, setLeadEmail } from "./lib/leadEmails";
+import { getBackendUrl } from "./lib/backendDiscovery";
 import {
   IconAlert,
   IconBarChart,
   IconChevronDown,
   IconDownload,
   IconMail,
+  IconRadar,
   IconSearch,
   IconSettings,
   IconSpinner,
@@ -113,6 +115,14 @@ export default function App() {
   const [messageEtab, setMessageEtab] = useState<SireneEtablissement | null>(
     null,
   );
+
+  const [backendUrl, setBackendUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    getBackendUrl()
+      .then(setBackendUrl)
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     localStorage.setItem("sirene_params", JSON.stringify(params));
@@ -329,6 +339,14 @@ export default function App() {
     [deptFilteredRows, pipeline],
   );
 
+  // Compteur global (tout le pipeline, pas seulement les résultats affichés) —
+  // visible depuis le header pour ne jamais rater une relance due, même en
+  // dehors d'une recherche en cours.
+  const globalFollowUpCount = useMemo(
+    () => Object.values(pipeline).filter(isFollowUpDue).length,
+    [pipeline],
+  );
+
   const noSiteCount = stats.sansSite;
 
   const exportCSV = () => {
@@ -357,7 +375,9 @@ export default function App() {
     <div className="app-shell">
       <header className="topbar">
         <div className="topbar__brand">
-          <div className="topbar__logo">🧾</div>
+          <div className="topbar__logo">
+            <IconRadar size={22} />
+          </div>
           <div>
             <h1>LeadRadar</h1>
             <div className="topbar__subtitle">Nouveaux établissements — recherche INSEE + Google Places</div>
@@ -369,6 +389,17 @@ export default function App() {
             <span className="topbar__badge-dot" />
             Backend sécurisé
           </div>
+
+          {globalFollowUpCount > 0 && (
+            <button
+              type="button"
+              className="topbar__badge topbar__badge--followup"
+              onClick={() => setView("dashboard")}
+              title="Voir les relances dues dans le dashboard"
+            >
+              🔔 {globalFollowUpCount} à relancer
+            </button>
+          )}
 
           <div className="segmented">
             <button
@@ -657,7 +688,33 @@ export default function App() {
         onClose={() => setSettingsOpen(false)}
       />
 
-      <footer className="app-footer">INSEE SIRENE API • backend filtré (safe mode)</footer>
+      <footer className="app-footer">
+        <div>INSEE SIRENE API • backend filtré (safe mode)</div>
+        <div className="app-footer__sources">
+          Sources :{" "}
+          <a href="https://www.sirene.fr/" target="_blank" rel="noopener noreferrer">
+            INSEE Sirene
+          </a>
+          {" · "}
+          <a
+            href="https://developers.google.com/maps/documentation/places/web-service/overview"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Google Places
+          </a>
+          {" · "}
+          <a href="https://www.openstreetmap.org/" target="_blank" rel="noopener noreferrer">
+            OpenStreetMap
+          </a>
+          {backendUrl && (
+            <>
+              {" — backend : "}
+              <code>{backendUrl}</code>
+            </>
+          )}
+        </div>
+      </footer>
     </div>
   );
 }

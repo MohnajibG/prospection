@@ -165,6 +165,18 @@ export function IconMail({ size, className }: IconProps) {
   );
 }
 
+export function IconRadar({ size, className }: IconProps) {
+  return (
+    <svg {...base(size)} className={className}>
+      <circle cx="12" cy="12" r="9" />
+      <circle cx="12" cy="12" r="5.5" />
+      <circle cx="12" cy="12" r="2" />
+      <line x1="12" y1="12" x2="12" y2="3" />
+      <circle cx="17" cy="7" r="1" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
 export function IconBarChart({ size, className }: IconProps) {
   return (
     <svg {...base(size)} className={className}>
