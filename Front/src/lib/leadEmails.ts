@@ -1,7 +1,3 @@
-// Ni SIRENE ni Google Places ne donnent d'email (structurel : ces leads sont
-// justement les commerces sans site web, donc rien à en extraire) — l'email
-// se tape à la main. On le mémorise par SIRET pour ne pas le retaper à
-// chaque réouverture de la fiche.
 const STORAGE_KEY = "sirene_lead_emails";
 
 export function getLeadEmails(): Record<string, string> {

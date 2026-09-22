@@ -154,9 +154,22 @@ export default function SiretModal({
               </div>
             </div>
 
+            {etab.rating != null && (
+              <div className="muted" style={{ fontSize: 12.5, marginTop: 4 }}>
+                ⭐ {etab.rating} {etab.ratingCount != null && `(${etab.ratingCount} avis)`}
+              </div>
+            )}
+
             <div className="modal-siret-row">
+              <span className="muted" style={{ fontSize: 11 }}>
+                {etab.source === "maps" ? "ID Google Maps" : "SIRET"}
+              </span>
               <code>{etab.siret}</code>
-              <button className="icon-btn" onClick={onCopySiret} title="Copier le SIRET">
+              <button
+                className="icon-btn"
+                onClick={onCopySiret}
+                title={etab.source === "maps" ? "Copier l'ID" : "Copier le SIRET"}
+              >
                 {copied ? <IconCheck size={15} /> : <IconCopy size={15} />}
               </button>
             </div>

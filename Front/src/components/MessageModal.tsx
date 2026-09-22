@@ -4,6 +4,7 @@ import type { SenderProfile } from "../lib/senderProfile";
 import { buildOutreachMessage } from "../lib/messageTemplate";
 import { buildGmailComposeUrl } from "../lib/gmail";
 import { buildEmailSearchUrl } from "../lib/searchLinks";
+import { PipelineEntry, PipelineStatus, STATUS_LABEL } from "../lib/pipeline";
 import { IconCheck, IconClose, IconCopy, IconMail, IconPhone, IconSearch } from "./Icons";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -12,17 +13,21 @@ export default function MessageModal({
   etab,
   profile,
   email,
-  isContacted,
+  pipelineEntry,
   onEmailChange,
-  onToggleContacted,
+  onMarkContacted,
+  onSetStatus,
+  onClearStatus,
   onClose,
 }: {
   etab: SireneEtablissement | null;
   profile: SenderProfile;
   email: string;
-  isContacted: boolean;
+  pipelineEntry?: PipelineEntry;
   onEmailChange: (siret: string, email: string) => void;
-  onToggleContacted?: (siret: string) => void;
+  onMarkContacted?: (row: SireneEtablissement) => void;
+  onSetStatus?: (siret: string, status: PipelineStatus) => void;
+  onClearStatus?: (siret: string) => void;
   onClose: () => void;
 }) {
   const [subject, setSubject] = useState("");
@@ -126,14 +131,57 @@ export default function MessageModal({
             )}
 
             <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
-              <button
-                type="button"
-                className="btn secondary"
-                onClick={() => onToggleContacted?.(etab.siret)}
-              >
-                {isContacted ? <IconClose size={15} /> : <IconCheck size={15} />}
-                {isContacted ? "Retirer « contacté »" : "Marquer comme contacté"}
-              </button>
+              {!pipelineEntry ? (
+                <button
+                  type="button"
+                  className="btn secondary"
+                  onClick={() => onMarkContacted?.(etab)}
+                >
+                  <IconCheck size={15} />
+                  Marquer comme contacté
+                </button>
+              ) : (
+                <div className="row" style={{ gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+                  <span className={`badge ${pipelineEntry.status}`}>
+                    {STATUS_LABEL[pipelineEntry.status]}
+                  </span>
+
+                  {pipelineEntry.status === "contacte" && (
+                    <>
+                      <button
+                        type="button"
+                        className="btn secondary"
+                        onClick={() => onSetStatus?.(etab.siret, "reponse")}
+                      >
+                        Répondu
+                      </button>
+                      <button
+                        type="button"
+                        className="btn secondary"
+                        onClick={() => onSetStatus?.(etab.siret, "gagne")}
+                      >
+                        Gagné 🎉
+                      </button>
+                      <button
+                        type="button"
+                        className="btn secondary"
+                        onClick={() => onSetStatus?.(etab.siret, "perdu")}
+                      >
+                        Perdu
+                      </button>
+                    </>
+                  )}
+
+                  <button
+                    type="button"
+                    className="icon-btn"
+                    title="Retirer le suivi"
+                    onClick={() => onClearStatus?.(etab.siret)}
+                  >
+                    <IconClose size={15} />
+                  </button>
+                </div>
+              )}
 
               <button className="btn secondary" onClick={copyAll}>
                 {copied === "all" ? <IconCheck size={15} /> : <IconCopy size={15} />}

@@ -84,6 +84,116 @@ async function searchOne(row: GoogleInput, apiKey: string): Promise<GoogleResult
   };
 }
 
+export type AreaSearchInput = {
+  secteur: string;
+  ville: string;
+  codePostal?: string;
+};
+
+export type AreaPlaceResult = {
+  placeId: string;
+  nom?: string;
+  adresse?: string;
+  codePostal?: string;
+  commune?: string;
+  telephone?: string;
+  siteWeb?: string;
+  hasWebsite: boolean;
+  rating?: number;
+  ratingCount?: number;
+};
+
+const AREA_FIELD_MASK =
+  "places.id,places.displayName,places.formattedAddress,places.addressComponents," +
+  "places.websiteUri,places.nationalPhoneNumber,places.rating,places.userRatingCount," +
+  "nextPageToken";
+
+const AREA_MAX_PAGES = 3;
+// Google exige un court délai avant qu'un nextPageToken devienne utilisable.
+const AREA_PAGE_TOKEN_DELAY_MS = 2000;
+
+function sleep(ms: number) {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
+function addressComponent(place: any, type: string): string | undefined {
+  const comp = place.addressComponents?.find((c: any) => c.types?.includes(type));
+  return comp?.longText;
+}
+
+function mapAreaPlace(place: any): AreaPlaceResult {
+  return {
+    placeId: place.id,
+    nom: place.displayName?.text,
+    adresse: place.formattedAddress,
+    codePostal: addressComponent(place, "postal_code"),
+    commune: addressComponent(place, "locality"),
+    telephone: place.nationalPhoneNumber,
+    siteWeb: place.websiteUri,
+    hasWebsite: !!place.websiteUri,
+    rating: place.rating,
+    ratingCount: place.userRatingCount,
+  };
+}
+
+export async function searchAreaGooglePlaces(
+  input: AreaSearchInput,
+  apiKey: string,
+): Promise<AreaPlaceResult[]> {
+  const textQuery = [input.secteur, input.ville, input.codePostal]
+    .filter(Boolean)
+    .join(" ");
+
+  const byId = new Map<string, AreaPlaceResult>();
+  let pageToken: string | undefined;
+
+  for (let page = 0; page < AREA_MAX_PAGES; page++) {
+    if (page > 0) {
+      if (!pageToken) break;
+      await sleep(AREA_PAGE_TOKEN_DELAY_MS);
+    }
+
+    const res = await fetch(TEXT_SEARCH_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Goog-Api-Key": apiKey,
+        "X-Goog-FieldMask": AREA_FIELD_MASK,
+      },
+      body: JSON.stringify(
+        pageToken
+          ? { pageToken }
+          : { textQuery, languageCode: "fr", regionCode: "FR", maxResultCount: 20 },
+      ),
+    });
+
+    if (res.status === 401 || res.status === 403) {
+      const txt = await res.text();
+      console.error("GOOGLE PLACES AUTH ERROR:", { status: res.status, body: txt });
+      throw new GoogleAuthError(
+        "Clé Google Places invalide, ou API \"Places API (New)\" non activée sur le projet Google Cloud — vérifie GOOGLE_PLACES_API_KEY dans Back/.env.",
+      );
+    }
+
+    if (!res.ok) {
+      const txt = await res.text();
+      console.error("GOOGLE PLACES AREA ERROR:", { status: res.status, body: txt });
+      break;
+    }
+
+    const data = await res.json();
+    for (const place of data.places ?? []) {
+      const mapped = mapAreaPlace(place);
+      if (mapped.placeId) byId.set(mapped.placeId, mapped);
+    }
+
+    pageToken = data.nextPageToken;
+    if (!pageToken) break;
+  }
+
+  return Array.from(byId.values());
+}
+
 export async function findViaGooglePlaces(
   rows: GoogleInput[],
   apiKey: string

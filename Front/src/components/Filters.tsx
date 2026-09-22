@@ -7,6 +7,20 @@ const ALL_NAF: { code: NafCode; label: string }[] = [
   { code: "5610C", label: "Restauration rapide" },
   { code: "5630Z", label: "Débit de boisson" },
   { code: "5621Z", label: "Traiteur" },
+  { code: "1071C", label: "Boulangerie-pâtisserie" },
+  { code: "9602A", label: "Coiffure" },
+  { code: "9602B", label: "Soins de beauté" },
+  { code: "4321A", label: "Électricien" },
+  { code: "4322A", label: "Plombier-chauffagiste" },
+  { code: "4332A", label: "Menuiserie" },
+  { code: "4334Z", label: "Peinture / vitrerie" },
+  { code: "9604Z", label: "Spa / institut de bien-être" },
+  { code: "9313Z", label: "Salle de sport" },
+  { code: "8551Z", label: "Cours sportifs / danse / yoga" },
+  { code: "9329Z", label: "Loisirs (escape game, bowling...)" },
+  { code: "5510Z", label: "Hôtel" },
+  { code: "5520Z", label: "Gîte / chambre d'hôtes" },
+  { code: "8230Z", label: "Organisation d'événements" },
 ];
 
 type Props = {

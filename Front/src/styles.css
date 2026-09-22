@@ -29,6 +29,8 @@
   --success-soft: rgba(52, 211, 153, 0.12);
   --danger: #f87171;
   --danger-soft: rgba(248, 113, 113, 0.12);
+  --warning: #fbbf24;
+  --warning-soft: rgba(251, 191, 36, 0.14);
 
   --radius-sm: 8px;
   --radius-md: 12px;
@@ -172,6 +174,10 @@ h1 {
   align-items: start;
 }
 
+.shell--single {
+  grid-template-columns: 1fr;
+}
+
 .sidebar {
   display: flex;
   flex-direction: column;
@@ -300,6 +306,32 @@ h1 {
 .stat-card--muted.active {
   border-color: rgba(255, 255, 255, 0.28);
   background: var(--surface-hover);
+}
+
+.stat-card--warning.active {
+  border-color: rgba(251, 191, 36, 0.45);
+  background: var(--warning-soft);
+}
+
+.stat-card--warning.active .stat-card__icon,
+.stat-card--warning.active .stat-card__value {
+  color: var(--warning);
+}
+
+.stat-card--danger.active {
+  border-color: rgba(248, 113, 113, 0.4);
+  background: var(--danger-soft);
+}
+
+.stat-card--danger.active .stat-card__icon,
+.stat-card--danger.active .stat-card__value {
+  color: var(--danger);
+}
+
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
 }
 
 /* ---------------------------------------------------------------- */
@@ -728,10 +760,47 @@ tbody td.muted-cell {
   white-space: nowrap;
 }
 
-.badge.contacted {
+.badge.contacted,
+.badge.contacte {
   background: var(--surface-2);
   border-color: var(--border-strong);
   color: var(--text-muted);
+  font-family: inherit;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.badge.followup {
+  background: var(--warning-soft);
+  border-color: rgba(251, 191, 36, 0.4);
+  color: var(--warning);
+  font-family: inherit;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.badge.reponse {
+  background: var(--accent-soft);
+  border-color: var(--accent-border);
+  color: #d9d1ff;
+  font-family: inherit;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.badge.gagne {
+  background: var(--success-soft);
+  border-color: rgba(52, 211, 153, 0.35);
+  color: var(--success);
+  font-family: inherit;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.badge.perdu {
+  background: var(--danger-soft);
+  border-color: rgba(248, 113, 113, 0.35);
+  color: var(--danger);
   font-family: inherit;
   font-weight: 600;
   white-space: nowrap;

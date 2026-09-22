@@ -1,24 +1,41 @@
 import { useEffect, useMemo, useState } from "react";
 import Filters from "./components/Filters";
+import AreaFilters from "./components/AreaFilters";
 import ResultsTable from "./components/ResultsTable";
 import SiretSearch from "./components/SiretSearch";
 import SiretModal from "./components/SiretModal";
 import MessageModal from "./components/MessageModal";
 import SenderSettings from "./components/SenderSettings";
 import StatCards from "./components/StatCards";
-import { fetchNewEtablissements, enrichWebPresence } from "./api/sirene";
-import { PresenceFilter, SearchParams, SireneEtablissement } from "./types";
+import Dashboard from "./components/Dashboard";
+import { fetchNewEtablissements, fetchAreaLeads, enrichWebPresence } from "./api/sirene";
+import {
+  AreaSearchParams,
+  PipelineFilter,
+  PresenceFilter,
+  SearchParams,
+  SireneEtablissement,
+} from "./types";
 import { toCSV, downloadCSV, downloadText } from "./lib/csv";
 import { downloadExcel } from "./lib/excel";
 import { buildOutreachMessage, toOutreachText } from "./lib/messageTemplate";
 import { getSenderProfile, saveSenderProfile, SenderProfile } from "./lib/senderProfile";
-import { getContactedSet, setContacted } from "./lib/contactStatus";
+import {
+  clearStatus,
+  getPipeline,
+  isFollowUpDue,
+  markContacted,
+  PipelineStatus,
+  setStatus,
+} from "./lib/pipeline";
 import { getLeadEmails, setLeadEmail } from "./lib/leadEmails";
 import {
   IconAlert,
+  IconBarChart,
   IconChevronDown,
   IconDownload,
   IconMail,
+  IconSearch,
   IconSettings,
   IconSpinner,
   IconTarget,
@@ -32,6 +49,12 @@ const DEFAULTS: SearchParams = {
   perPage: 100,
 };
 
+const AREA_DEFAULTS: AreaSearchParams = {
+  secteur: "",
+  ville: "",
+  codePostal: "",
+};
+
 function getDepartementFromCP(cp?: string): string | undefined {
   if (!cp || !/^\d{5}$/.test(cp.trim())) return undefined;
   const clean = cp.trim();
@@ -40,10 +63,23 @@ function getDepartementFromCP(cp?: string): string | undefined {
 }
 
 export default function App() {
+  const [view, setView] = useState<"search" | "dashboard">("search");
+
+  const [mode, setMode] = useState<"sirene" | "area">(() => {
+    const saved = localStorage.getItem("sirene_mode");
+    return saved === "area" ? "area" : "sirene";
+  });
+
   const [params, setParams] = useState<SearchParams>(() => {
     const saved = localStorage.getItem("sirene_params");
 
     return saved ? { ...DEFAULTS, ...JSON.parse(saved) } : DEFAULTS;
+  });
+
+  const [areaParams, setAreaParams] = useState<AreaSearchParams>(() => {
+    const saved = localStorage.getItem("sirene_area_params");
+
+    return saved ? { ...AREA_DEFAULTS, ...JSON.parse(saved) } : AREA_DEFAULTS;
   });
 
   const [rows, setRows] = useState<SireneEtablissement[]>([]);
@@ -54,12 +90,13 @@ export default function App() {
 
   const [deptFilter, setDeptFilter] = useState<string>("ALL");
   const [presenceFilter, setPresenceFilter] = useState<PresenceFilter>("ALL");
-  const [hideContacted, setHideContacted] = useState(false);
+  const [pipelineFilter, setPipelineFilter] = useState<PipelineFilter>("ALL");
+  const [hideUncontactable, setHideUncontactable] = useState(false);
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [highlightSiret, setHighlightSiret] = useState<string | null>(null);
   const [siretSearchOpen, setSiretSearchOpen] = useState(false);
 
-  const [contacted, setContactedState] = useState<Set<string>>(() => getContactedSet());
+  const [pipeline, setPipeline] = useState(() => getPipeline());
   const [leadEmails, setLeadEmailsState] = useState<Record<string, string>>(() =>
     getLeadEmails(),
   );
@@ -80,6 +117,14 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem("sirene_params", JSON.stringify(params));
   }, [params]);
+
+  useEffect(() => {
+    localStorage.setItem("sirene_area_params", JSON.stringify(areaParams));
+  }, [areaParams]);
+
+  useEffect(() => {
+    localStorage.setItem("sirene_mode", mode);
+  }, [mode]);
 
   const enrichRows = async (targetRows: SireneEtablissement[]) => {
     if (!targetRows.length) return;
@@ -159,6 +204,30 @@ export default function App() {
     }
   };
 
+  const runAreaSearch = async () => {
+    setLoading(true);
+    setError(null);
+    setWarning(null);
+    setDeptFilter("ALL");
+    setPresenceFilter("ALL");
+
+    try {
+      const { rows: data, warning: w } = await fetchAreaLeads(areaParams);
+
+      const enriched = data.map((e) => ({
+        ...e,
+        departement: getDepartementFromCP(e.codePostalEtablissement),
+      }));
+
+      setRows(enriched);
+      if (w) setWarning(w);
+    } catch (e: any) {
+      setError(e?.message ?? "Erreur inconnue");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleSiretClick = (_siret: string, row: SireneEtablissement) => {
     setSelectedEtab(row);
     setModalOpen(true);
@@ -178,8 +247,16 @@ export default function App() {
     saveSenderProfile(profile);
   };
 
-  const handleToggleContacted = (siret: string) => {
-    setContactedState((prev) => setContacted(prev, siret, !prev.has(siret)));
+  const handleMarkContacted = (row: SireneEtablissement) => {
+    setPipeline((prev) => markContacted(prev, row));
+  };
+
+  const handleSetStatus = (siret: string, status: PipelineStatus) => {
+    setPipeline((prev) => setStatus(prev, siret, status));
+  };
+
+  const handleClearStatus = (siret: string) => {
+    setPipeline((prev) => clearStatus(prev, siret));
   };
 
   const handleLeadEmailChange = (siret: string, email: string) => {
@@ -218,7 +295,18 @@ export default function App() {
           : list.filter((r) => r.presenceWeb === presenceFilter);
     }
 
-    if (hideContacted) list = list.filter((r) => !contacted.has(r.siret));
+    if (pipelineFilter !== "ALL") {
+      list = list.filter((r) => {
+        const entry = pipeline[r.siret];
+        if (pipelineFilter === "a_contacter") return !entry;
+        if (pipelineFilter === "a_relancer") return isFollowUpDue(entry);
+        return entry?.status === pipelineFilter;
+      });
+    }
+
+    if (hideUncontactable) {
+      list = list.filter((r) => !!r.telephone || !!leadEmails[r.siret]);
+    }
 
     return [...list].sort((a, b) => {
       const cmp = (a.dateCreationEtablissement ?? "").localeCompare(
@@ -226,7 +314,20 @@ export default function App() {
       );
       return sortDir === "desc" ? -cmp : cmp;
     });
-  }, [deptFilteredRows, presenceFilter, hideContacted, contacted, sortDir]);
+  }, [
+    deptFilteredRows,
+    presenceFilter,
+    pipelineFilter,
+    pipeline,
+    hideUncontactable,
+    leadEmails,
+    sortDir,
+  ]);
+
+  const followUpCount = useMemo(
+    () => deptFilteredRows.filter((r) => isFollowUpDue(pipeline[r.siret])).length,
+    [deptFilteredRows, pipeline],
+  );
 
   const noSiteCount = stats.sansSite;
 
@@ -269,6 +370,27 @@ export default function App() {
             Backend sécurisé
           </div>
 
+          <div className="segmented">
+            <button
+              type="button"
+              className={view === "search" ? "active" : ""}
+              onClick={() => setView("search")}
+              style={{ display: "inline-flex", alignItems: "center", gap: 6 }}
+            >
+              <IconSearch size={14} />
+              Recherche
+            </button>
+            <button
+              type="button"
+              className={view === "dashboard" ? "active" : ""}
+              onClick={() => setView("dashboard")}
+              style={{ display: "inline-flex", alignItems: "center", gap: 6 }}
+            >
+              <IconBarChart size={14} />
+              Dashboard
+            </button>
+          </div>
+
           <button
             type="button"
             className="icon-btn"
@@ -280,11 +402,45 @@ export default function App() {
         </div>
       </header>
 
+      {view === "dashboard" ? (
+        <div className="shell shell--single">
+          <main className="main">
+            <div className="step-label">Suivi &amp; pipeline</div>
+            <Dashboard pipeline={pipeline} />
+          </main>
+        </div>
+      ) : (
       <div className="shell">
         <aside className="sidebar">
           <div className="step-label">Rechercher</div>
 
-          <Filters value={params} onChange={setParams} onSubmit={runSearch} loading={loading} />
+          <div className="segmented">
+            <button
+              type="button"
+              className={mode === "sirene" ? "active" : ""}
+              onClick={() => setMode("sirene")}
+            >
+              Nouvelles créations
+            </button>
+            <button
+              type="button"
+              className={mode === "area" ? "active" : ""}
+              onClick={() => setMode("area")}
+            >
+              Par secteur (Maps)
+            </button>
+          </div>
+
+          {mode === "sirene" ? (
+            <Filters value={params} onChange={setParams} onSubmit={runSearch} loading={loading} />
+          ) : (
+            <AreaFilters
+              value={areaParams}
+              onChange={setAreaParams}
+              onSubmit={runAreaSearch}
+              loading={loading}
+            />
+          )}
 
           <button
             type="button"
@@ -348,10 +504,10 @@ export default function App() {
             <ResultsTable
               rows={filteredRows}
               highlightSiret={highlightSiret}
-              contacted={contacted}
+              pipeline={pipeline}
               sortDir={sortDir}
               onToggleSort={() => setSortDir((d) => (d === "desc" ? "asc" : "desc"))}
-              onToggleContacted={handleToggleContacted}
+              onMarkContacted={handleMarkContacted}
               onSiretClick={handleSiretClick}
               onMessageClick={handleMessageClick}
             />
@@ -397,13 +553,39 @@ export default function App() {
                 )}
 
                 <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
+                  {followUpCount > 0 && (
+                    <button
+                      type="button"
+                      className={`chip ${pipelineFilter === "a_relancer" ? "active" : ""}`}
+                      onClick={() =>
+                        setPipelineFilter((f) => (f === "a_relancer" ? "ALL" : "a_relancer"))
+                      }
+                    >
+                      🔔 À relancer ({followUpCount})
+                    </button>
+                  )}
+
+                  <select
+                    value={pipelineFilter}
+                    onChange={(e) => setPipelineFilter(e.target.value as PipelineFilter)}
+                  >
+                    <option value="ALL">Tous les statuts</option>
+                    <option value="a_contacter">Non contactés</option>
+                    <option value="a_relancer">À relancer</option>
+                    <option value="contacte">Contactés</option>
+                    <option value="reponse">Ont répondu</option>
+                    <option value="gagne">Gagnés</option>
+                    <option value="perdu">Perdus</option>
+                  </select>
+
                   <button
                     type="button"
-                    className={`chip ${hideContacted ? "active" : ""}`}
-                    onClick={() => setHideContacted((v) => !v)}
-                    aria-pressed={hideContacted}
+                    className={`chip ${hideUncontactable ? "active" : ""}`}
+                    onClick={() => setHideUncontactable((v) => !v)}
+                    aria-pressed={hideUncontactable}
+                    title="Masque les établissements sans téléphone ni email connu"
                   >
-                    Masquer les contactés
+                    Masquer les non-contactables
                   </button>
 
                   <button className="btn secondary" onClick={runEnrich} disabled={enriching}>
@@ -432,10 +614,10 @@ export default function App() {
               <ResultsTable
                 rows={filteredRows}
                 highlightSiret={highlightSiret}
-                contacted={contacted}
+                pipeline={pipeline}
                 sortDir={sortDir}
                 onToggleSort={() => setSortDir((d) => (d === "desc" ? "asc" : "desc"))}
-                onToggleContacted={handleToggleContacted}
+                onMarkContacted={handleMarkContacted}
                 onSiretClick={handleSiretClick}
                 onMessageClick={handleMessageClick}
               />
@@ -443,6 +625,7 @@ export default function App() {
           )}
         </main>
       </div>
+      )}
 
       {modalOpen && (
         <SiretModal
@@ -459,9 +642,11 @@ export default function App() {
         etab={messageEtab}
         profile={senderProfile}
         email={(messageEtab && leadEmails[messageEtab.siret]) || ""}
-        isContacted={!!messageEtab && contacted.has(messageEtab.siret)}
+        pipelineEntry={messageEtab ? pipeline[messageEtab.siret] : undefined}
         onEmailChange={handleLeadEmailChange}
-        onToggleContacted={handleToggleContacted}
+        onMarkContacted={handleMarkContacted}
+        onSetStatus={handleSetStatus}
+        onClearStatus={handleClearStatus}
         onClose={() => setMessageEtab(null)}
       />
 

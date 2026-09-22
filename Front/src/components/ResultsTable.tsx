@@ -1,16 +1,17 @@
 import { SireneEtablissement } from "../types";
-import { IconCheck, IconClose, IconExternal, IconInbox, IconMail, IconPhone } from "./Icons";
+import { isFollowUpDue, PipelineEntry, STATUS_LABEL } from "../lib/pipeline";
+import { IconCheck, IconExternal, IconInbox, IconMail, IconMapPin, IconPhone } from "./Icons";
 
 function WebPresenceCell({
   r,
-  isContacted,
+  pipelineEntry,
   onMessageClick,
-  onToggleContacted,
+  onMarkContacted,
 }: {
   r: SireneEtablissement;
-  isContacted: boolean;
+  pipelineEntry?: PipelineEntry;
   onMessageClick?: (row: SireneEtablissement) => void;
-  onToggleContacted?: (siret: string) => void;
+  onMarkContacted?: (row: SireneEtablissement) => void;
 }) {
   const isLead = r.presenceWeb === "sans_site";
 
@@ -33,22 +34,30 @@ function WebPresenceCell({
   );
 
   if (r.presenceWeb === "sans_site") {
+    const due = isFollowUpDue(pipelineEntry);
+
     return (
       <div className="row" style={{ gap: 6 }}>
-        {isContacted ? (
-          <span className="badge contacted">✅ Contacté</span>
-        ) : (
+        {!pipelineEntry ? (
           <span className="badge lead">🎯 Pas de site</span>
+        ) : due ? (
+          <span className="badge followup">🔔 À relancer</span>
+        ) : (
+          <span className={`badge ${pipelineEntry.status}`}>
+            {STATUS_LABEL[pipelineEntry.status]}
+          </span>
         )}
         {mailButton}
-        <button
-          type="button"
-          className="icon-btn"
-          title={isContacted ? "Retirer le statut « contacté »" : "Marquer comme contacté"}
-          onClick={() => onToggleContacted?.(r.siret)}
-        >
-          {isContacted ? <IconClose size={15} /> : <IconCheck size={15} />}
-        </button>
+        {!pipelineEntry && (
+          <button
+            type="button"
+            className="icon-btn"
+            title="Marquer comme contacté"
+            onClick={() => onMarkContacted?.(r)}
+          >
+            <IconCheck size={15} />
+          </button>
+        )}
       </div>
     );
   }
@@ -80,20 +89,20 @@ function WebPresenceCell({
 export default function ResultsTable({
   rows,
   highlightSiret,
-  contacted,
+  pipeline,
   sortDir,
   onSiretClick,
   onMessageClick,
-  onToggleContacted,
+  onMarkContacted,
   onToggleSort,
 }: {
   rows: SireneEtablissement[];
   highlightSiret?: string | null;
-  contacted: Set<string>;
+  pipeline: Record<string, PipelineEntry>;
   sortDir: "asc" | "desc";
   onSiretClick?: (siret: string, row: SireneEtablissement) => void;
   onMessageClick?: (row: SireneEtablissement) => void;
-  onToggleContacted?: (siret: string) => void;
+  onMarkContacted?: (row: SireneEtablissement) => void;
   onToggleSort?: () => void;
 }) {
   if (!rows.length) {
@@ -136,10 +145,10 @@ export default function ResultsTable({
           {rows.map((r) => {
             const nom = r.denominationUniteLegale || r.nomUniteLegale || "—";
             const isHighlighted = highlightSiret === r.siret;
-            const isContacted = contacted.has(r.siret);
+            const entry = pipeline[r.siret];
             const rowClass = [
               isHighlighted ? "row-highlight" : "",
-              isContacted ? "row-contacted" : "",
+              entry ? "row-contacted" : "",
             ]
               .filter(Boolean)
               .join(" ");
@@ -147,19 +156,30 @@ export default function ResultsTable({
             return (
               <tr key={r.siret} className={rowClass}>
                 <td>
-                  <button
-                    className="siret-btn"
-                    onClick={() => onSiretClick?.(r.siret, r)}
-                    title="Ouvrir les options de recherche"
-                  >
-                    <code>{r.siret}</code>
-                    <IconExternal size={12} />
-                  </button>
+                  {r.source === "maps" ? (
+                    <button
+                      className="siret-btn"
+                      onClick={() => onSiretClick?.(r.siret, r)}
+                      title="Ouvrir la fiche"
+                    >
+                      <IconMapPin size={12} />
+                      Fiche
+                    </button>
+                  ) : (
+                    <button
+                      className="siret-btn"
+                      onClick={() => onSiretClick?.(r.siret, r)}
+                      title="Ouvrir les options de recherche"
+                    >
+                      <code>{r.siret}</code>
+                      <IconExternal size={12} />
+                    </button>
+                  )}
                 </td>
                 <td>{nom}</td>
                 <td>
                   <span className="badge">
-                    {r.activitePrincipaleEtablissement || "—"}
+                    {r.activitePrincipaleEtablissement || r.activiteLibelle || "—"}
                   </span>
                 </td>
                 <td className={r.dateCreationEtablissement ? "" : "muted-cell"}>
@@ -190,9 +210,9 @@ export default function ResultsTable({
                 <td>
                   <WebPresenceCell
                     r={r}
-                    isContacted={isContacted}
+                    pipelineEntry={entry}
                     onMessageClick={onMessageClick}
-                    onToggleContacted={onToggleContacted}
+                    onMarkContacted={onMarkContacted}
                   />
                 </td>
               </tr>

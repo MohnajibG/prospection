@@ -1,4 +1,4 @@
-import { SearchParams, SireneEtablissement, WebPresenceResult } from "../types";
+import { AreaSearchParams, SearchParams, SireneEtablissement, WebPresenceResult } from "../types";
 import { backendFetch } from "../lib/backendDiscovery";
 
 export type SearchResult = {
@@ -10,6 +10,21 @@ export async function fetchNewEtablissements(
   p: SearchParams
 ): Promise<SearchResult> {
   const res = await backendFetch("/search", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(p),
+  });
+
+  const data = await res.json();
+
+  if (!res.ok) throw new Error(`API error ${res.status}`);
+  if (data?.error) throw new Error(data.error);
+
+  return { rows: data.data ?? [], warning: data.warning };
+}
+
+export async function fetchAreaLeads(p: AreaSearchParams): Promise<SearchResult> {
+  const res = await backendFetch("/search/area", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(p),

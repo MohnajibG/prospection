@@ -13,13 +13,20 @@ export function buildOutreachMessage(
 ): OutreachMessage {
   const name = etab.denominationUniteLegale || etab.nomUniteLegale || "votre établissement";
   const commune = etab.libelleCommuneEtablissement;
-  const pitch = getSectorPitch(etab.activitePrincipaleEtablissement);
+  const pitch = getSectorPitch(etab.activitePrincipaleEtablissement, etab.activiteLibelle);
 
   const subject = `Un site web pour ${name} ?`;
 
-  const opening = commune
-    ? `Je suis tombé sur ${name}, ${pitch.activity} qui vient d'ouvrir à ${commune} — félicitations pour le lancement !`
-    : `Je suis tombé sur ${name}, ${pitch.activity} qui vient d'ouvrir — félicitations pour le lancement !`;
+  // Les leads "maps" sont des commerces existants trouvés via Google Maps,
+  // pas des créations récentes : pas de mention de lancement pour eux.
+  const opening =
+    etab.source === "maps"
+      ? commune
+        ? `Je suis tombé sur ${name}, ${pitch.activity} à ${commune}.`
+        : `Je suis tombé sur ${name}, ${pitch.activity}.`
+      : commune
+        ? `Je suis tombé sur ${name}, ${pitch.activity} qui vient d'ouvrir à ${commune} — félicitations pour le lancement !`
+        : `Je suis tombé sur ${name}, ${pitch.activity} qui vient d'ouvrir — félicitations pour le lancement !`;
 
   const signatureLines = [
     "",
@@ -67,7 +74,7 @@ export function toOutreachText(
       return [
         "=".repeat(60),
         heading,
-        `SIRET : ${row.siret}`,
+        `${row.source === "maps" ? "ID" : "SIRET"} : ${row.siret}`,
         "",
         `Objet : ${subject}`,
         "",
